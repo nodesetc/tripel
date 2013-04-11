@@ -1,0 +1,16 @@
+$def with (col_keys, table_headers, table_rows)
+
+<table class="basic-table">
+$if table_headers is not None and len(table_headers) > 0:
+    <tr>
+        $for header in table_headers:
+            <th>$header</th>
+    </tr>
+
+$if table_rows is not None and len(table_rows) > 0:
+        $for row in table_rows:
+            <tr>
+                $for key in col_keys:
+                    <td>$:row[key]</td>
+            </tr>
+</table>

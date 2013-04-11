@@ -1,0 +1,5 @@
+include tripel/*.sql
+include tripel/groovy_scripts/*.groovy
+include tripel/config_defaults/pgpass
+include tripel/config_defaults/smtppass
+recursive-include tripel/templates *.html *.css

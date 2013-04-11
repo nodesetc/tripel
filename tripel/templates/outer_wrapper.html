@@ -1,0 +1,52 @@
+$def with (title, content_summary, content, msg_lookup_fn, hdr_links, nav_links, cmd_links)
+
+$ instance_name = msg_lookup_fn('instance_name')
+$ logout_label = msg_lookup_fn('logout_label')
+
+<html>
+
+<head>
+<title>$title</title>
+<link href="css/tripelstyle.css" rel="stylesheet" type="text/css">
+</head>
+
+
+<body>
+
+$if hdr_links is not None:
+    <div class="hdr-links">
+		$for link in hdr_links:
+			<a href="$link['url']">$link['display_text']</a>
+    </div>
+
+<h1>
+$instance_name
+</h1>
+
+$if nav_links is not None:
+    <div class="nav-links">
+		$for link in nav_links:
+			<a href="$link['url']">$link['display_text']</a>
+    </div>
+
+<div class="main-content-div">
+$if content_summary is not None and (len(content_summary) > 0):
+    <div class="content-summary">
+        $content_summary
+    </div>
+
+$if cmd_links is not None:
+    <div class="cmd-links">
+		$for link in cmd_links:
+			<a href="$link['url']">$link['display_text']</a>
+    </div>
+
+$:content
+</div>
+
+<footer>
+
+</footer>
+
+</body>
+</html>

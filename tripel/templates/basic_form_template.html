@@ -1,0 +1,10 @@
+$def with (form_html, form_name, form_action, should_auto_submit_form=False)
+
+<form name="$form_name" method="post" action="$form_action">
+$:form_html
+</form>
+
+$if should_auto_submit_form:
+    <script type="text/javascript">
+    document.forms[0].submit();
+    </script>

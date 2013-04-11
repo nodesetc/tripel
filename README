@@ -1,0 +1,14 @@
+eventually, this project will let you:
+* create hierarchical category structures.
+* create writeups under said category structures.
+* create comment threads under categories or under writeups.
+* watch writeups and comments in a graph-based way to be alerted about new developments.
+
+unfortunately, at present, all you can do is:
+* login.
+* create "nodespaces".
+* invite new users.
+* create categories from the python interpreter (which you'll also need to use to create your first user).
+* run a set of unit tests which is no longer comprehensive.
+
+but development is ongoing, and something useful should be here soon, hopefully.  stay tuned.

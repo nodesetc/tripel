@@ -1,0 +1,6 @@
+*.coverage
+*.pyc
+tripel/config/
+
+dist/
+MANIFEST
