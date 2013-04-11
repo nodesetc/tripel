@@ -111,10 +111,10 @@ def setup_test_pgdb():
     admin_user = User.get_existing_user_by_email(PGDB_TEST, TestData.USER_ADMIN['email_addr'])
     if admin_user is None:
         admin_data = TestData.USER_ADMIN
-        admin_user = User.create_new_user(PGDB_TEST, admin_data['email_addr'], admin_data['username'], admin_data['cleartext_password'], admin_data['user_statement'],
+        admin_user = User.create_new_user(DB_TUPLE_TEST, admin_data['email_addr'], admin_data['username'], admin_data['cleartext_password'], admin_data['user_statement'],
                                             admin_data['is_enabled'], admin_data['metaspace_privileges'], admin_data['creator'])
         ns_data = TestData.NODESPACE_1
-        Nodespace.create_new_nodespace(PGDB_TEST, ns_data['nodespace_name'], ns_data['nodespace_description'], admin_user.user_id)
+        Nodespace.create_new_nodespace(DB_TUPLE_TEST, ns_data['nodespace_name'], ns_data['nodespace_description'], admin_user.user_id)
 
 """
 #TODO: does not currently work since my test neodb instance won't cache scripts
