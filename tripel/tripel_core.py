@@ -622,18 +622,107 @@ class CategoryNode(TripelNode):
     
 class CommentNode(TripelNode):
     NODE_TYPE = 'COMMENT'
+    COMMENT_INDEX_NAME = 'COMMENT_IDX'
+    COMMENT_SUBJECT_FIELD_NAME = '_TRPL_COM_SUBJ'
+    COMMENT_BODY_FIELD_NAME = '_TRPL_COM_BODY'
+    
+    @classmethod
+    def _get_fields_to_index(cls):
+        idx_fields = super(cls, cls)._get_fields_to_index().copy()
+        idx_fields.update({cls.COMMENT_INDEX_NAME: [cls.COMMENT_SUBJECT_FIELD_NAME, cls.COMMENT_BODY_FIELD_NAME]})
+        return idx_fields
+    
+    @classmethod
+    def _get_required_fields(cls):
+        return super(cls, cls)._get_required_fields() + [cls.COMMENT_SUBJECT_FIELD_NAME, cls.COMMENT_BODY_FIELD_NAME]
+    
+    @classmethod
+    def get_comment_index(cls, neodb):
+        return neodb.get_or_create_index(neo4j.Node, cls.COMMENT_INDEX_NAME, config=cls.FULLTEXT_IDX_CONFIG)
+    
+    @classmethod
+    def _get_create_node_stmt_def(cls, pgdb, properties, additional_params=None):
+        tripel_node = cls._init_for_create(pgdb, properties)
+        stmt_def = NeoUtil.get_create_and_index_node_stmt_def(tripel_node._properties, tripel_node._get_fields_to_index(), tripel_node)
+        return stmt_def
+    
+    @classmethod
+    def create_new_comment_node(cls, db_tuple, parent_unique_node_id, creator_user_id, comment_subj, comment_body, properties, should_run_gremlin_immediately=True):
+        pgdb, neodb = db_tuple
+        properties = properties.copy()
+        properties[cls.COMMENT_SUBJECT_FIELD_NAME] = comment_subj
+        properties[cls.COMMENT_BODY_FIELD_NAME] = comment_body
+        
+        create_node_stmts = cls._create_new_node(db_tuple, properties, {}, False)
+        com_node_unq_id = create_node_stmts[0]['py_result']._properties[cls.UNIQUE_NODE_ID_FIELD_NAME]
+        link_to_creator_stmts = CreatedByEdge.link_node_to_creator(db_tuple, com_node_unq_id, creator_user_id, False)
+        link_to_parent_stmts = CommentAttachEdge.link_nodes_by_unique_id(db_tuple, com_node_unq_id, parent_unique_node_id, {}, False)
+        stmt_defs = create_node_stmts + link_to_creator_stmts + link_to_parent_stmts
+        
+        if should_run_gremlin_immediately:
+            NeoUtil.run_gremlin_statements(neodb, stmt_defs)
+            return create_node_stmts[0]['py_result']
+        else:
+            return stmt_defs
 
-class InfoNode(TripelNode):
-    NODE_TYPE = 'INFO'
+class WriteupNode(TripelNode):
+    NODE_TYPE = 'WRITEUP'
+    WRITEUP_INDEX_NAME = 'WRITEUP_IDX'
+    WRITEUP_TITLE_FIELD_NAME = '_TRPL_WRUP_TITLE'
+    WRITEUP_BODY_FIELD_NAME = '_TRPL_WRUP_BODY'
+    
+    @classmethod
+    def _get_fields_to_index(cls):
+        idx_fields = super(cls, cls)._get_fields_to_index().copy()
+        idx_fields.update({cls.WRITEUP_INDEX_NAME: [cls.WRITEUP_TITLE_FIELD_NAME, cls.WRITEUP_BODY_FIELD_NAME]})
+        return idx_fields
+    
+    @classmethod
+    def _get_required_fields(cls):
+        return super(cls, cls)._get_required_fields() + [cls.WRITEUP_TITLE_FIELD_NAME, cls.WRITEUP_BODY_FIELD_NAME]
+    
+    @classmethod
+    def get_writeup_index(cls, neodb):
+        return neodb.get_or_create_index(neo4j.Node, cls.WRITEUP_INDEX_NAME, config=cls.FULLTEXT_IDX_CONFIG)
+    
+    @classmethod
+    def _get_create_node_stmt_def(cls, pgdb, properties, additional_params=None):
+        tripel_node = cls._init_for_create(pgdb, properties)
+        stmt_def = NeoUtil.get_create_and_index_node_stmt_def(tripel_node._properties, tripel_node._get_fields_to_index(), tripel_node)
+        return stmt_def
+    
+    @classmethod
+    def create_new_writeup_node(cls, db_tuple, parent_cat_unique_node_id, creator_user_id, writeup_title, writeup_body, properties, should_run_gremlin_immediately=True):
+        pgdb, neodb = db_tuple
+        properties = properties.copy()
+        properties[cls.WRITEUP_TITLE_FIELD_NAME] = writeup_title
+        properties[cls.WRITEUP_BODY_FIELD_NAME] = writeup_body
+        
+        create_node_stmts = cls._create_new_node(db_tuple, properties, {}, False)
+        wrup_node_unq_id = create_node_stmts[0]['py_result']._properties[cls.UNIQUE_NODE_ID_FIELD_NAME]
+        link_to_creator_stmts = CreatedByEdge.link_node_to_creator(db_tuple, wrup_node_unq_id, creator_user_id, False)
+        link_to_parent_stmts = CategorizationEdge.link_nodes_by_unique_id(db_tuple, wrup_node_unq_id, parent_cat_unique_node_id, {}, False)
+        stmt_defs = create_node_stmts + link_to_creator_stmts + link_to_parent_stmts
+        
+        if should_run_gremlin_immediately:
+            NeoUtil.run_gremlin_statements(neodb, stmt_defs)
+            return create_node_stmts[0]['py_result']
+        else:
+            return stmt_defs
 
 class NotificationNode(TripelNode):
     NODE_TYPE = 'NOTIFICATION'
+    #TODO: is linked to user, has links to nodes which user should be notified of?  requires custom edge w/ creation date.  would imply one notification hub node.
+    #TODO: OR, maybe notification has link to search that spawned notification and link to specific result node, and link to user to be notified.  would imply one node per notification.
 
 class RecommendationNode(NotificationNode):
     NODE_TYPE = 'RECOMMENDATION'
+    #TODO: similar structural dilemma as notifications, except these are manual recommendations from user to user (instead of auto-generated recs from saved searches)
+    #TODO: a note with the rec?  what about a setup where a rec can point to many nodes?  that'd argue for the one rec node per recommendation scheme (as opposed to a rec hub node for each user)
 
 class AlertNode(NotificationNode):
     NODE_TYPE = 'USR_ALERT'
+    #TODO: i think this just links to user or nodespace and is essentially a message or something
 
 def init_neodb(db_tuple):
     pgdb, neodb = db_tuple
@@ -644,6 +733,8 @@ def init_neodb(db_tuple):
     UserNode.get_user_index(neodb)
     NodespaceNode.get_nodespace_index(neodb)
     CategoryNode.get_category_index(neodb)
+    CommentNode.get_comment_index(neodb)
+    WriteupNode.get_writeup_index(neodb)
 
     #create a neo user node for each existing pg user
     users = User.get_all_users(pgdb)
