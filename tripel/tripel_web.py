@@ -278,7 +278,7 @@ class nodespace_create_form(BasePage, nodespace_form):
 class nodespace_create(BasePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return MS_PRVLG_CHKR.is_allowed_to_do(PGDB, MS_PRVLG_CHKR.CREATE_SPACE_ACTION, None, actor, should_raise_insufficient_priv_ex)
+        return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.CREATE_SPACE_ACTION, None, actor, should_raise_insufficient_priv_ex)
     
     def render_page(self, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
@@ -317,7 +317,7 @@ class nodespace_edit_form(BasePage, nodespace_form):
 class nodespace_edit(BasePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return NS_PRVLG_CHKR.is_allowed_to_do(PGDB, NS_PRVLG_CHKR.ALTER_NODESPACE_ACTION, target, actor, should_raise_insufficient_priv_ex)
+        return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.ALTER_NODESPACE_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     def render_page(self, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
@@ -393,7 +393,7 @@ class user_invite_create_form(BasePage):
 class user_invite_create(BasePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return MS_PRVLG_CHKR.is_allowed_to_do(PGDB, MS_PRVLG_CHKR.CREATE_USER_ACTION, None, actor, should_raise_insufficient_priv_ex)
+        return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.CREATE_USER_ACTION, None, actor, should_raise_insufficient_priv_ex)
     
     def render_page(self, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
@@ -517,7 +517,7 @@ class nodespace_invite_create_form(BasePage):
 class nodespace_invite_create(BasePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return NS_PRVLG_CHKR.is_allowed_to_do(PGDB, NS_PRVLG_CHKR.ALTER_NODESPACE_ACCESS_ACTION, target, actor, should_raise_insufficient_priv_ex)
+        return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.ALTER_NODESPACE_ACCESS_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     def render_page(self, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
@@ -529,7 +529,7 @@ class nodespace_invite_create(BasePage):
         nodespace_privileges = tc.NodespacePrivilegeSet.create_from_list_of_strings(web.input(nodespace_privileges=[]).get('nodespace_privileges'))
         invitee_user = tc.User.get_existing_user_by_email(PGDB, invitee_email_addr)
         if invitee_user is None:
-            tc.MetaspacePrivilegeChecker.is_allowed_to_do(PGDB, tc.MetaspacePrivilegeChecker.CREATE_USER_ACTION, None, user)
+            tc.MetaspacePrivilegeChecker.is_allowed_to_do(DB_TUPLE, tc.MetaspacePrivilegeChecker.CREATE_USER_ACTION, None, user)
         
         invitation_msg = web.input().get('invitation_msg')
         ns_inv = tc.NodespaceInvitation.create_new_invitation(PGDB, None, invitee_email_addr, nodespace.nodespace_id, nodespace_privileges, invitation_msg, user.user_id)
@@ -658,7 +658,7 @@ class user_view(BasePage, ListTablePage):
     
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return NS_PRVLG_CHKR.is_allowed_to_do(PGDB, NS_PRVLG_CHKR.VIEW_USER_ACTION, target, actor, should_raise_insufficient_priv_ex)
+        return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.VIEW_USER_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
     def table_data_to_basic_table_template_input(cls, table_data):
@@ -707,7 +707,7 @@ class user_info_edit_form(BasePage):
 class user_info_edit(BasePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return MS_PRVLG_CHKR.is_allowed_to_do(PGDB, MS_PRVLG_CHKR.ALTER_USER_INFO_ACTION, target, actor, should_raise_insufficient_priv_ex)
+        return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.ALTER_USER_INFO_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     def render_page(self, ms_session):
         editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
@@ -750,7 +750,7 @@ class user_change_pass_form(BasePage):
 class user_change_pass(BasePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return MS_PRVLG_CHKR.is_allowed_to_do(PGDB, MS_PRVLG_CHKR.ALTER_USER_INFO_ACTION, target, actor, should_raise_insufficient_priv_ex)
+        return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.ALTER_USER_INFO_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     def render_page(self, ms_session):
         editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
@@ -791,7 +791,7 @@ class nodespace_list_accessible(BasePage, ListTablePage):
 class nodespace_list_all(BasePage, ListTablePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return MS_PRVLG_CHKR.is_allowed_to_do(PGDB, MS_PRVLG_CHKR.LIST_ALL_SPACES_ACTION, None, actor, should_raise_insufficient_priv_ex)
+        return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.LIST_ALL_SPACES_ACTION, None, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
     def _get_col_keys(cls, table_data):
@@ -832,7 +832,7 @@ class user_list_nodespace(BasePage, ListTablePage):
     
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return NS_PRVLG_CHKR.is_allowed_to_do(PGDB, NS_PRVLG_CHKR.ALTER_NODESPACE_ACCESS_ACTION, target, actor, should_raise_insufficient_priv_ex)
+        return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.ALTER_NODESPACE_ACCESS_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     def render_page(self, ms_session):
         nodespace_id = web.input().get('nodespace_id')
@@ -860,7 +860,7 @@ class user_list_all(BasePage, ListTablePage):
     
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return MS_PRVLG_CHKR.is_allowed_to_do(PGDB, MS_PRVLG_CHKR.LIST_ALL_USERS_ACTION, None, actor, should_raise_insufficient_priv_ex)
+        return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.LIST_ALL_USERS_ACTION, None, actor, should_raise_insufficient_priv_ex)
     
     def render_page(self, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
@@ -901,7 +901,7 @@ class metaspace_access_edit_form(BasePage):
 class metaspace_access_edit(BasePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return MS_PRVLG_CHKR.is_allowed_to_do(PGDB, MS_PRVLG_CHKR.ALTER_USER_ACCESS_ACTION, target, actor, should_raise_insufficient_priv_ex)
+        return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.ALTER_USER_ACCESS_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     def render_page(self, ms_session):
         editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
@@ -948,7 +948,7 @@ class nodespace_access_edit_form(BasePage):
 class nodespace_access_edit(BasePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return NS_PRVLG_CHKR.is_allowed_to_do(PGDB, NS_PRVLG_CHKR.ALTER_NODESPACE_ACCESS_ACTION, target, actor, should_raise_insufficient_priv_ex)
+        return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.ALTER_NODESPACE_ACCESS_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     def render_page(self, ms_session):
         editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
@@ -967,7 +967,7 @@ class nodespace_access_edit(BasePage):
 class metaspace_command_list(BasePage, ListTablePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return MS_PRVLG_CHKR.is_allowed_to_do(PGDB, MS_PRVLG_CHKR.VIEW_METASPACE_COMMANDS, target, actor, should_raise_insufficient_priv_ex)
+        return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.VIEW_METASPACE_COMMANDS_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
     def _get_col_keys(cls, table_data):
@@ -988,6 +988,23 @@ class metaspace_command_list(BasePage, ListTablePage):
             cmd_list.append({'cmd_link': util.a_elt(link_text=page_name, href_att_val=page_url)})
         
         return self.wrap_content(self.basic_table_content(cmd_list), user=user)
+
+class comment_create_form(BasePage):
+    @classmethod
+    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
+        return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.CREATE_POST_ACTION, target, actor, should_raise_insufficient_priv_ex)
+
+class comment_reply_form(BasePage):
+    pass
+
+class comment_edit_form(BasePage):
+    pass
+
+class writeup_create_form(BasePage):
+    pass
+
+class writeup_edit_form(BasePage):
+    pass
 
 class tripel_style(BasePage):
     REQUIRES_VALID_SESSION = False

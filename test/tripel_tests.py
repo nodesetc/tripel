@@ -339,9 +339,9 @@ def Privileges_tests():
 
 def PrivilegeChecker_tests():
     with AssertExceptionThrown(PrivilegeChecker.UnrecognizedActionException):
-        MetaspacePrivilegeChecker.is_allowed_to_do(PGDB_TEST, 'MOVE_IMMOVABLE_OBJ', None, User())
+        MetaspacePrivilegeChecker.is_allowed_to_do(DB_TUPLE_PT_NM, 'MOVE_IMMOVABLE_OBJ', None, User())
     with AssertExceptionThrown(PrivilegeChecker.UnrecognizedActionException):
-        NodespacePrivilegeChecker.is_allowed_to_do(PGDB_TEST, 'MOVE_IMMOVABLE_OBJ', None, User())
+        NodespacePrivilegeChecker.is_allowed_to_do(DB_TUPLE_PT_NM, 'MOVE_IMMOVABLE_OBJ', None, User())
 
 def MetaspacePrivilegeChecker_tests():
     super_user = User()
@@ -360,16 +360,16 @@ def MetaspacePrivilegeChecker_tests():
     for temp_user in [super_user, user_creator_user, space_creator_user, target_user]:
         setattr(temp_user, 'email_addr', 'dummy_email_%i@test.com' % temp_user.user_id)
     
-    assert MetaspacePrivilegeChecker.is_allowed_to_do(PGDB_TEST, MetaspacePrivilegeChecker.CREATE_USER_ACTION, None, super_user)
-    assert MetaspacePrivilegeChecker.is_allowed_to_do(PGDB_TEST, MetaspacePrivilegeChecker.CREATE_USER_ACTION, None, user_creator_user)
-    assert MetaspacePrivilegeChecker.is_allowed_to_do(PGDB_TEST, MetaspacePrivilegeChecker.ALTER_USER_INFO_ACTION, target_user, super_user)
-    assert MetaspacePrivilegeChecker.is_allowed_to_do(PGDB_TEST, MetaspacePrivilegeChecker.ALTER_USER_INFO_ACTION, target_user, target_user)
-    assert not MetaspacePrivilegeChecker.is_allowed_to_do(PGDB_TEST, MetaspacePrivilegeChecker.ALTER_USER_INFO_ACTION, target_user, user_creator_user, False)
-    assert not MetaspacePrivilegeChecker.is_allowed_to_do(PGDB_TEST, MetaspacePrivilegeChecker.ALTER_USER_ACCESS_ACTION, target_user, user_creator_user, False)
-    assert not MetaspacePrivilegeChecker.is_allowed_to_do(PGDB_TEST, MetaspacePrivilegeChecker.CREATE_USER_ACTION, None, space_creator_user, False)
+    assert MetaspacePrivilegeChecker.is_allowed_to_do(DB_TUPLE_PT_NM, MetaspacePrivilegeChecker.CREATE_USER_ACTION, None, super_user)
+    assert MetaspacePrivilegeChecker.is_allowed_to_do(DB_TUPLE_PT_NM, MetaspacePrivilegeChecker.CREATE_USER_ACTION, None, user_creator_user)
+    assert MetaspacePrivilegeChecker.is_allowed_to_do(DB_TUPLE_PT_NM, MetaspacePrivilegeChecker.ALTER_USER_INFO_ACTION, target_user, super_user)
+    assert MetaspacePrivilegeChecker.is_allowed_to_do(DB_TUPLE_PT_NM, MetaspacePrivilegeChecker.ALTER_USER_INFO_ACTION, target_user, target_user)
+    assert not MetaspacePrivilegeChecker.is_allowed_to_do(DB_TUPLE_PT_NM, MetaspacePrivilegeChecker.ALTER_USER_INFO_ACTION, target_user, user_creator_user, False)
+    assert not MetaspacePrivilegeChecker.is_allowed_to_do(DB_TUPLE_PT_NM, MetaspacePrivilegeChecker.ALTER_USER_ACCESS_ACTION, target_user, user_creator_user, False)
+    assert not MetaspacePrivilegeChecker.is_allowed_to_do(DB_TUPLE_PT_NM, MetaspacePrivilegeChecker.CREATE_USER_ACTION, None, space_creator_user, False)
     with AssertExceptionThrown(PrivilegeChecker.InsufficientPrivilegesException):
-        MetaspacePrivilegeChecker.is_allowed_to_do(PGDB_TEST, MetaspacePrivilegeChecker.CREATE_USER_ACTION, None, space_creator_user)
-    assert MetaspacePrivilegeChecker.is_allowed_to_do(PGDB_TEST, MetaspacePrivilegeChecker.CREATE_SPACE_ACTION, None, space_creator_user)
+        MetaspacePrivilegeChecker.is_allowed_to_do(DB_TUPLE_PT_NM, MetaspacePrivilegeChecker.CREATE_USER_ACTION, None, space_creator_user)
+    assert MetaspacePrivilegeChecker.is_allowed_to_do(DB_TUPLE_PT_NM, MetaspacePrivilegeChecker.CREATE_SPACE_ACTION, None, space_creator_user)
 
 def NodespacePrivilegeChecker_tests():
     ns_inv_data = TestData.NS_INV_HORATIO
@@ -383,7 +383,7 @@ def NodespacePrivilegeChecker_tests():
         ns_invite = NodespaceInvitation.create_new_invitation(PGDB_TEST, ns_inv_data['nodespace_invitation_code'], ns_inv_data['invitee_email_addr'], ns_inv_data['nodespace_id'], 
                                                             ns_inv_data['initial_nodespace_privileges'], ns_inv_data['invitation_msg'], ns_inv_data['creator'])
         new_user = ns_invite.create_user_and_accept_invitation(DB_TUPLE_PT_NM, ns_inv_data['invitee_username'], ns_inv_data['invitee_password'], ns_inv_data['invitee_user_statement'])
-        assert not NodespacePrivilegeChecker.is_allowed_to_do(PGDB_TEST, NodespacePrivilegeChecker.ALTER_NODESPACE_ACCESS_ACTION, test_ns, new_user, False)
+        assert not NodespacePrivilegeChecker.is_allowed_to_do(DB_TUPLE_PT_NM, NodespacePrivilegeChecker.ALTER_NODESPACE_ACCESS_ACTION, test_ns, new_user, False)
 
 def MetaspaceSession_tests():
     user = User.get_existing_user_by_email(PGDB_TEST, TestData.USER_ADMIN['email_addr'])

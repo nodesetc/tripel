@@ -417,11 +417,11 @@ class CreatedByEdge(TripelEdge):
 class SubcategoryEdge(TripelEdge):
     EDGE_TYPE = 'HAS_PARENT_CAT'
 
-class CommentReplyEdge(TripelEdge):
-    EDGE_TYPE = 'HAS_PARENT_COMMENT'
-
 class CategorizationEdge(TripelEdge):
     EDGE_TYPE = 'BELONGS_TO_CAT'
+
+class CommentReplyEdge(TripelEdge):
+    EDGE_TYPE = 'HAS_PARENT_COMMENT'
 
 class CommentAttachEdge(TripelEdge):
     EDGE_TYPE = 'COMMENTS_ON'
@@ -647,7 +647,7 @@ class CommentNode(TripelNode):
         return stmt_def
     
     @classmethod
-    def create_new_comment_node(cls, db_tuple, parent_unique_node_id, creator_user_id, comment_subj, comment_body, properties, should_run_gremlin_immediately=True):
+    def _create_new_comment_node(cls, db_tuple, parent_unique_node_id, edge_type, creator_user_id, comment_subj, comment_body, properties, should_run_gremlin_immediately):
         pgdb, neodb = db_tuple
         properties = properties.copy()
         properties[cls.COMMENT_SUBJECT_FIELD_NAME] = comment_subj
@@ -656,7 +656,7 @@ class CommentNode(TripelNode):
         create_node_stmts = cls._create_new_node(db_tuple, properties, {}, False)
         com_node_unq_id = create_node_stmts[0]['py_result']._properties[cls.UNIQUE_NODE_ID_FIELD_NAME]
         link_to_creator_stmts = CreatedByEdge.link_node_to_creator(db_tuple, com_node_unq_id, creator_user_id, False)
-        link_to_parent_stmts = CommentAttachEdge.link_nodes_by_unique_id(db_tuple, com_node_unq_id, parent_unique_node_id, {}, False)
+        link_to_parent_stmts = edge_type.link_nodes_by_unique_id(db_tuple, com_node_unq_id, parent_unique_node_id, {}, False)
         stmt_defs = create_node_stmts + link_to_creator_stmts + link_to_parent_stmts
         
         if should_run_gremlin_immediately:
@@ -664,6 +664,14 @@ class CommentNode(TripelNode):
             return create_node_stmts[0]['py_result']
         else:
             return stmt_defs
+    
+    @classmethod
+    def start_new_comment_thread(cls, db_tuple, parent_cat_or_wrup_unique_node_id, creator_user_id, comment_subj, comment_body, properties, should_run_gremlin_immediately=True):
+        return cls._create_new_comment_node(db_tuple, parent_cat_or_wrup_unique_node_id, CommentAttachEdge, creator_user_id, comment_subj, comment_body, properties, should_run_gremlin_immediately)
+    
+    @classmethod
+    def reply_to_comment(cls, db_tuple, parent_cmnt_unique_node_id, creator_user_id, comment_subj, comment_body, properties, should_run_gremlin_immediately=True):
+        return cls._create_new_comment_node(db_tuple, parent_cmnt_unique_node_id, CommentReplyEdge, creator_user_id, comment_subj, comment_body, properties, should_run_gremlin_immediately)
 
 class WriteupNode(TripelNode):
     NODE_TYPE = 'WRITEUP'
@@ -1082,7 +1090,7 @@ class PrivilegeChecker(object):
         pass
     
     @classmethod
-    def is_allowed_to_do(cls, pgdb, action, target, actor, should_raise_insufficent_priv_ex=True):
+    def is_allowed_to_do(cls, db_tuple, action, target, actor, should_raise_insufficent_priv_ex=True):
         """
         this method uses info from the child class to determine whether there's a check function corresponding to the action to be performed.  if not,
         an excpeption is thrown.  if yes, the check is run and the result is returned, or an exception is thrown, depending on the outcome of the check 
@@ -1097,22 +1105,22 @@ class PrivilegeChecker(object):
         if actor.metaspace_privileges.has_privilege(MetaspacePrivilegeSet.SUPER):
             return True
         
-        can_do_action = action_check_fn(pgdb, target, actor)
+        can_do_action = action_check_fn(db_tuple, target, actor)
         if should_raise_insufficent_priv_ex and not can_do_action:
             raise cls.InsufficientPrivilegesException('%s (user_id=%i) is not allowed to perform %s' % (actor.email_addr, actor.user_id, action))
         else:
             return can_do_action
 
 class MetaspacePrivilegeChecker(PrivilegeChecker):
-    VIEW_METASPACE_COMMANDS = 'view_metaspace_cmds_act'
+    VIEW_METASPACE_COMMANDS_ACTION = 'view_metaspace_cmds_act'
     CREATE_USER_ACTION, CREATE_SPACE_ACTION, LIST_ALL_SPACES_ACTION = 'create_user_act', 'create_space_act', 'list_all_spaces_act'
     ALTER_USER_INFO_ACTION, ALTER_USER_ACCESS_ACTION, LIST_ALL_USERS_ACTION = 'alter_user_info_act', 'alter_user_access_act', 'list_all_users_act'
-    RECOGNIZED_ACTIONS = frozenset([VIEW_METASPACE_COMMANDS, CREATE_USER_ACTION, CREATE_SPACE_ACTION, LIST_ALL_SPACES_ACTION, 
+    RECOGNIZED_ACTIONS = frozenset([VIEW_METASPACE_COMMANDS_ACTION, CREATE_USER_ACTION, CREATE_SPACE_ACTION, LIST_ALL_SPACES_ACTION, 
                                     ALTER_USER_INFO_ACTION, ALTER_USER_ACCESS_ACTION, LIST_ALL_USERS_ACTION])
     
     @classmethod
     def get_action_check_fn(cls, action):
-        if action == cls.VIEW_METASPACE_COMMANDS:
+        if action == cls.VIEW_METASPACE_COMMANDS_ACTION:
             return cls.can_view_metaspace_commands
         elif action == cls.CREATE_USER_ACTION:
             return cls.can_create_user
@@ -1128,24 +1136,24 @@ class MetaspacePrivilegeChecker(PrivilegeChecker):
         return None
     
     @classmethod
-    def can_view_metaspace_commands(cls, pgdb, target, actor):
+    def can_view_metaspace_commands(cls, db_tuple, target, actor):
         return len(actor.metaspace_privileges._privileges) > 0
     
     @classmethod
-    def can_create_user(cls, pgdb, target, actor):
+    def can_create_user(cls, db_tuple, target, actor):
         return actor.metaspace_privileges.has_privilege(MetaspacePrivilegeSet.CREATE_USER)
     
     @classmethod
-    def can_update_user(cls, pgdb, target, actor):
+    def can_update_user(cls, db_tuple, target, actor):
         """only super users can edit other users"""
         return target.user_id == actor.user_id
     
     @classmethod
-    def can_create_space(cls, pgdb, target, actor):
+    def can_create_space(cls, db_tuple, target, actor):
         return actor.metaspace_privileges.has_privilege(MetaspacePrivilegeSet.CREATE_SPACE)
     
     @classmethod
-    def no_can_do(cls, pgdb, target, actor):
+    def no_can_do(cls, db_tuple, target, actor):
         """ if they got this far they aren't a super user """
         return False
 
@@ -1166,17 +1174,20 @@ class NodespacePrivilegeChecker(PrivilegeChecker):
         return None
 
     @classmethod
-    def has_admin_access(cls, pgdb, target, actor):
+    def has_admin_access(cls, db_tuple, target, actor):
+        pgdb, neodb = db_tuple
         ns_access = target.get_nodespace_access_for_user(pgdb, actor.user_id)
         ns_privs = ns_access.nodespace_privileges if ns_access is not None else None
         return ns_privs.has_privilege(NodespacePrivilegeSet.ADMIN) if ns_privs is not None else False
 
     @classmethod
-    def can_view_nodespace(cls, pgdb, target, actor):
+    def can_view_nodespace(cls, db_tuple, target, actor):
+        pgdb, neodb = db_tuple
         return target.get_nodespace_access_for_user(pgdb, actor.user_id) is not None
     
     @classmethod
-    def can_view_user(cls, pgdb, target, actor):
+    def can_view_user(cls, db_tuple, target, actor):
+        pgdb, neodb = db_tuple
         if target.user_id == actor.user_id: return True
         return Nodespace.do_users_share_nodespace_access(pgdb, target.user_id, actor.user_id)
 
