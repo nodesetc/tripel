@@ -602,6 +602,9 @@ class nodespace_invite_decide(BasePage):
         nodespace_access_entry = nodespace.get_nodespace_access_for_user(PGDB, invitee_user.user_id)
         
         if invitee_user is not None and nodespace_access_entry is not None:
+            #TODO: this actually presents a security hole:  anyone who has an invitation link for an existing user can
+            # get a session as that user.  should just redirect to login page.  maybe do the same for ms user creation,
+            # if only for consistency's sake.
             ms_session = login_verify.create_session_and_set_cookie(PGDB, invitee_user.user_id)
             web.found(nodespace_access_view.build_page_url(query_params={'nodespace_id': nodespace.nodespace_id}))
         else:
@@ -992,7 +995,7 @@ class metaspace_command_list(BasePage, ListTablePage):
 class comment_create_form(BasePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.CREATE_POST_ACTION, target, actor, should_raise_insufficient_priv_ex)
+        return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.CREATE_COMMENT_ACTION, target, actor, should_raise_insufficient_priv_ex)
 
 class comment_reply_form(BasePage):
     pass
@@ -1016,6 +1019,13 @@ class tripel_style(BasePage):
     def render_page(self, ms_session):
         return RENDER.css.tripelstyle()
 
+#TODO: make this work
+class static_content(BasePage):
+    
+    @classmethod
+    def get_page_subpath(cls):
+        return '/static/'
+    
 
 
 """

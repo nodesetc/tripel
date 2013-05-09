@@ -358,6 +358,8 @@ class TripelEdge(TripelGraphElement):
         else:
             return [stmt_def]
     
+    #TODO: for sort of cheap integrity checking, take an optional type for the nodes to be found.  if type is provided 
+    # but not matched, throw an exception
     @classmethod
     def link_nodes_by_unique_id(cls, db_tuple, out_node_unq_id, in_node_unq_id, properties, should_run_gremlin_immediately=True):
         out_node_lookup_info = {'lookupIndexName': TripelNode.UNIQUE_NODE_ID_INDEX_NAME, 
@@ -1158,9 +1160,12 @@ class MetaspacePrivilegeChecker(PrivilegeChecker):
         return False
 
 class NodespacePrivilegeChecker(PrivilegeChecker):
-    CREATE_POST_ACTION, APPROVE_POST_ACTION, EDIT_POST_ACTION, DELETE_POST_ACTION = 'create_post_act', 'approve_post_act', 'edit_post_act', 'delete_post_act'
+    CREATE_COMMENT_ACTION, APPROVE_COMMENT_ACTION, EDIT_COMMENT_ACTION, DELETE_COMMENT_ACTION = 'create_comment_act', 'approve_comment_act', 'edit_comment_act', 'delete_comment_act'
+    CREATE_WRITEUP_ACTION, APPROVE_WRITEUP_ACTION, EDIT_WRITEUP_ACTION, DELETE_WRITEUP_ACTION = 'create_writeup_act', 'approve_writeup_act', 'edit_writeup_act', 'delete_writeup_act'
     ALTER_NODESPACE_ACTION, ALTER_NODESPACE_ACCESS_ACTION, VIEW_NODESPACE_ACTION, VIEW_USER_ACTION = 'alter_nodespace_act', 'alter_nodespace_access_act', 'view_nodespace_action', 'view_user_action'
-    RECOGNIZED_ACTIONS = frozenset([CREATE_POST_ACTION, APPROVE_POST_ACTION, EDIT_POST_ACTION, DELETE_POST_ACTION, ALTER_NODESPACE_ACTION, ALTER_NODESPACE_ACCESS_ACTION, VIEW_NODESPACE_ACTION])
+    RECOGNIZED_ACTIONS = frozenset([CREATE_COMMENT_ACTION, APPROVE_COMMENT_ACTION, EDIT_COMMENT_ACTION, DELETE_COMMENT_ACTION,
+                                    CREATE_WRITEUP_ACTION, APPROVE_WRITEUP_ACTION, EDIT_WRITEUP_ACTION, DELETE_WRITEUP_ACTION,
+                                    ALTER_NODESPACE_ACTION, ALTER_NODESPACE_ACCESS_ACTION, VIEW_NODESPACE_ACTION])
     
     @classmethod
     def get_action_check_fn(cls, action):
@@ -1170,6 +1175,10 @@ class NodespacePrivilegeChecker(PrivilegeChecker):
             return cls.can_view_nodespace
         if action == cls.VIEW_USER_ACTION:
             return cls.can_view_user
+        if action == cls.CREATE_COMMENT_ACTION:
+            return cls.can_create_comment
+        if action == cls.REPLY_TO_COMMENT_ACTION:
+            return cls.can_reply_to_comment
         # no check function found
         return None
 
@@ -1190,6 +1199,46 @@ class NodespacePrivilegeChecker(PrivilegeChecker):
         pgdb, neodb = db_tuple
         if target.user_id == actor.user_id: return True
         return Nodespace.do_users_share_nodespace_access(pgdb, target.user_id, actor.user_id)
+    
+    @classmethod
+    def can_create_comment(cls, db_tuple, target, actor):
+        pgdb, neodb = db_tuple
+        #if user has contributor, moderator, or admin in the nodespace containing the parent object and the parent object is a comment, category, or writeup.
+    
+    @classmethod
+    def can_reply_to_comment(cls, db_tuple, target, actor):
+        pgdb, neodb = db_tuple
+        
+        #TODO: should maybe break this out into a fn under NodespaceNode that returns an instance of that class
+        # could also have a util class w/ useful cypher queries that returns the other interesting nodes obtained by this query.
+        # could do something similar to that for pg queries that don't return a simple list of objects.
+        parent_info_cql = '''START cmnt=node:UNQ_NODE_ID_IDX(_TRPL_UNQ_NODE_ID={cmnt_node_unq_id}) 
+                        MATCH p = cmnt-[:HAS_PARENT_COMMENT*0..]->cmnt_thrd_root
+                        WITH cmnt_thrd_root ORDER BY length(p) DESC LIMIT 1
+                        MATCH cmnt_thrd_root-[:COMMENTS_ON]->cmntd_node-[:HAS_PARENT_CAT*]->root_cat-[:IS_ROOT_CAT_FOR]->nodespace
+                        RETURN nodespace;'''
+        parent_nodespace = cypher.execute(neodb, parent_info_cql, {"cmnt_node_unq_id": target._properties[target.UNIQUE_NODE_ID_FIELD_NAME]})[0][0][0]
+        parent_nodespace_id = parent_nodespace.get_properties()[NodespaceNode.NODESPACE_ID_FIELD_NAME]
+        
+        ns_access = NodespaceAccessEntry.get_existing_access_entry(pgdb, parent_nodespace_id, actor.user_id)
+        ns_privs = ns_access.nodespace_privileges if ns_access is not None else None
+        sufficient_privs = frozenset([NodespacePrivilegeSet.CONTRIBUTOR, NodespacePrivilegeSet.MODERATOR, NodespacePrivilegeSet.ADMIN])
+        return ns_privs.has_one_or_more_privileges(sufficient_privs) if ns_privs is not None else False
+    
+    @classmethod
+    def can_edit_comment(cls, db_tuple, target, actor):
+        pgdb, neodb = db_tuple
+        #if user has moderator or admin in the nodespace containing the comment to edit, or if the user created the comment, and comment has no replies yet
+    
+    @classmethod
+    def can_create_writeup(cls, db_tuple, target, actor):
+        pgdb, neodb = db_tuple
+        #if user user has contributor, editor, or admin in the nodespace containing the parent category
+    
+    @classmethod
+    def can_edit_writeup(cls, db_tuple, target, actor):
+        pgdb, neodb = db_tuple
+        #if user has editor or admin in the nodespace containing the writeup to edit, or the user created the writeup
 
 
 class Invitation(object):
