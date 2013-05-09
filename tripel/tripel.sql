@@ -8,7 +8,7 @@ CREATE TYPE :SCHEMA_NAME.auth_event_t AS ENUM ('session_created', 'session_kille
 
 CREATE TABLE :SCHEMA_NAME.users (
 	user_id SERIAL PRIMARY KEY,
-	email_addr VARCHAR(200) NOT NULL UNIQUE,
+	email_addr VARCHAR(200) NOT NULL UNIQUE, --TODO: sort of want to drop the NOT NULL constraint
 	username VARCHAR(100) NOT NULL UNIQUE,
 	encrypted_password VARCHAR(200) NOT NULL, --for now, using a bcrypt implementation which obviates the need for separate salt and encryption method fields
 	user_statement VARCHAR(1000),
