@@ -489,6 +489,10 @@ class TripelNode(TripelGraphElement):
     @classmethod
     def get_existing_node_by_unique_id(cls, neodb, unique_node_id):
         return cls._init_from_neo_node(cls.get_unique_node_id_index(neodb).get(cls.UNIQUE_NODE_ID_FIELD_NAME, str(unique_node_id))[0])
+    
+    #TODO: deletion
+    #TODO: lookup
+    #TODO: children added/modified after a given date (for notifications)
 
 class NodespaceNode(TripelNode):
     NODE_TYPE = 'NODESPACE'
@@ -618,10 +622,17 @@ class CategoryNode(TripelNode):
         else:
             return stmt_defs
     
-    #TODO: deletion
-    #TODO: lookup
-    #TODO: children added/modified after a given date (for notifications)
-    
+    def get_parent_nodespace(self, neodb):
+        parent_info_cql = '''START cat=node:%(unq_node_id_idx_name)s(%(unq_node_id_field_name)s={cat_node_unq_id}) 
+                                MATCH cat-[:%(subcat_edge_type)s*]->root_cat-[:%(catroot_edge_type)s]->nodespace
+                                RETURN nodespace;''' % {'unq_node_id_idx_name': self.UNIQUE_NODE_ID_INDEX_NAME, 
+                                                'unq_node_id_field_name': self.UNIQUE_NODE_ID_FIELD_NAME,
+                                                'subcat_edge_type': SubcategoryEdge.EDGE_TYPE,
+                                                'catroot_edge_type': CategoryRootEdge.EDGE_TYPE}
+        query_result = cypher.execute(neodb, parent_info_cql, {'cat_node_unq_id': self._properties[self.UNIQUE_NODE_ID_FIELD_NAME]})[0]
+        assert len(query_result) == 1 and len(query_result[0]) == 1
+        return NodespaceNode._init_from_properties(query_result[0][0].get_properties())
+
 class CommentNode(TripelNode):
     NODE_TYPE = 'COMMENT'
     COMMENT_INDEX_NAME = 'COMMENT_IDX'
@@ -674,6 +685,21 @@ class CommentNode(TripelNode):
     @classmethod
     def reply_to_comment(cls, db_tuple, parent_cmnt_unique_node_id, creator_user_id, comment_subj, comment_body, properties, should_run_gremlin_immediately=True):
         return cls._create_new_comment_node(db_tuple, parent_cmnt_unique_node_id, CommentReplyEdge, creator_user_id, comment_subj, comment_body, properties, should_run_gremlin_immediately)
+    
+    def get_parent_nodespace(self, neodb):
+        parent_info_cql = '''START cmnt=node:%(unq_node_id_idx_name)s(%(unq_node_id_field_name)s={cmnt_node_unq_id}) 
+                        MATCH p = cmnt-[:%(cmnt_reply_edge_type)s*0..]->cmnt_thrd_root
+                        WITH cmnt_thrd_root ORDER BY length(p) DESC LIMIT 1
+                        MATCH cmnt_thrd_root-[:%(cmnt_attach_edge_type)s]->cmntd_node-[:%(subcat_edge_type)s*]->root_cat-[:%(catroot_edge_type)s]->nodespace
+                        RETURN nodespace;''' % {'unq_node_id_idx_name': self.UNIQUE_NODE_ID_INDEX_NAME, 
+                                                'unq_node_id_field_name': self.UNIQUE_NODE_ID_FIELD_NAME,
+                                                'cmnt_reply_edge_type': CommentReplyEdge.EDGE_TYPE,
+                                                'cmnt_attach_edge_type': CommentAttachEdge.EDGE_TYPE,
+                                                'subcat_edge_type': SubcategoryEdge.EDGE_TYPE,
+                                                'catroot_edge_type': CategoryRootEdge.EDGE_TYPE}
+        query_result = cypher.execute(neodb, parent_info_cql, {'cmnt_node_unq_id': self._properties[self.UNIQUE_NODE_ID_FIELD_NAME]})[0]
+        assert len(query_result) == 1 and len(query_result[0]) == 1
+        return NodespaceNode._init_from_properties(query_result[0][0].get_properties())
 
 class WriteupNode(TripelNode):
     NODE_TYPE = 'WRITEUP'
@@ -719,6 +745,18 @@ class WriteupNode(TripelNode):
             return create_node_stmts[0]['py_result']
         else:
             return stmt_defs
+    
+    def get_parent_nodespace(self, neodb):
+        parent_info_cql = '''START wrup=node:%(unq_node_id_idx_name)s(%(unq_node_id_field_name)s={wrup_node_unq_id}) 
+                                MATCH wrup-[:%(categorization_edge_type)s]->cat-[:%(subcat_edge_type)s*]->root_cat-[:%(catroot_edge_type)s]->nodespace
+                                RETURN nodespace;''' % {'unq_node_id_idx_name': self.UNIQUE_NODE_ID_INDEX_NAME, 
+                                                'unq_node_id_field_name': self.UNIQUE_NODE_ID_FIELD_NAME,
+                                                'categorization_edge_type': CategorizationEdge.EDGE_TYPE,
+                                                'subcat_edge_type': SubcategoryEdge.EDGE_TYPE,
+                                                'catroot_edge_type': CategoryRootEdge.EDGE_TYPE}
+        query_result = cypher.execute(neodb, parent_info_cql, {'wrup_node_unq_id': self._properties[self.UNIQUE_NODE_ID_FIELD_NAME]})[0]
+        assert len(query_result) == 1 and len(query_result[0]) == 1
+        return NodespaceNode._init_from_properties(query_result[0][0].get_properties())
 
 class NotificationNode(TripelNode):
     NODE_TYPE = 'NOTIFICATION'
@@ -1176,9 +1214,11 @@ class NodespacePrivilegeChecker(PrivilegeChecker):
         if action == cls.VIEW_USER_ACTION:
             return cls.can_view_user
         if action == cls.CREATE_COMMENT_ACTION:
-            return cls.can_create_comment
+            return cls.can_create_comment_thread_on
         if action == cls.REPLY_TO_COMMENT_ACTION:
             return cls.can_reply_to_comment
+        if action == cls.CREATE_WRITEUP_ACTION:
+            return cls.can_create_writeup_under
         # no check function found
         return None
 
@@ -1201,28 +1241,25 @@ class NodespacePrivilegeChecker(PrivilegeChecker):
         return Nodespace.do_users_share_nodespace_access(pgdb, target.user_id, actor.user_id)
     
     @classmethod
-    def can_create_comment(cls, db_tuple, target, actor):
+    def can_create_comment_thread_on(cls, db_tuple, target, actor):
         pgdb, neodb = db_tuple
-        #if user has contributor, moderator, or admin in the nodespace containing the parent object and the parent object is a comment, category, or writeup.
+        assert isinstance(target, (CategoryNode, WriteupNode))
+        parent_nodespace = target.get_parent_nodespace(neodb)
+        parent_nodespace_id = parent_nodespace._properties[NodespaceNode.NODESPACE_ID_FIELD_NAME]
+        ns_access = NodespaceAccessEntry.get_existing_access_entry(pgdb, parent_nodespace_id, actor.user_id)
+        ns_privs = ns_access.nodespace_privileges if ns_access is not None else None
+        sufficient_privs = frozenset([NodespacePrivilegeSet.CONTRIBUTOR, NodespacePrivilegeSet.ADMIN])
+        return ns_privs.has_one_or_more_privileges(sufficient_privs) if ns_privs is not None else False
     
     @classmethod
     def can_reply_to_comment(cls, db_tuple, target, actor):
         pgdb, neodb = db_tuple
-        
-        #TODO: should maybe break this out into a fn under NodespaceNode that returns an instance of that class
-        # could also have a util class w/ useful cypher queries that returns the other interesting nodes obtained by this query.
-        # could do something similar to that for pg queries that don't return a simple list of objects.
-        parent_info_cql = '''START cmnt=node:UNQ_NODE_ID_IDX(_TRPL_UNQ_NODE_ID={cmnt_node_unq_id}) 
-                        MATCH p = cmnt-[:HAS_PARENT_COMMENT*0..]->cmnt_thrd_root
-                        WITH cmnt_thrd_root ORDER BY length(p) DESC LIMIT 1
-                        MATCH cmnt_thrd_root-[:COMMENTS_ON]->cmntd_node-[:HAS_PARENT_CAT*]->root_cat-[:IS_ROOT_CAT_FOR]->nodespace
-                        RETURN nodespace;'''
-        parent_nodespace = cypher.execute(neodb, parent_info_cql, {"cmnt_node_unq_id": target._properties[target.UNIQUE_NODE_ID_FIELD_NAME]})[0][0][0]
-        parent_nodespace_id = parent_nodespace.get_properties()[NodespaceNode.NODESPACE_ID_FIELD_NAME]
-        
+        assert isinstance(target, CommentNode)
+        parent_nodespace = target.get_parent_nodespace(neodb)
+        parent_nodespace_id = parent_nodespace._properties[NodespaceNode.NODESPACE_ID_FIELD_NAME]
         ns_access = NodespaceAccessEntry.get_existing_access_entry(pgdb, parent_nodespace_id, actor.user_id)
         ns_privs = ns_access.nodespace_privileges if ns_access is not None else None
-        sufficient_privs = frozenset([NodespacePrivilegeSet.CONTRIBUTOR, NodespacePrivilegeSet.MODERATOR, NodespacePrivilegeSet.ADMIN])
+        sufficient_privs = frozenset([NodespacePrivilegeSet.CONTRIBUTOR, NodespacePrivilegeSet.ADMIN])
         return ns_privs.has_one_or_more_privileges(sufficient_privs) if ns_privs is not None else False
     
     @classmethod
@@ -1231,9 +1268,16 @@ class NodespacePrivilegeChecker(PrivilegeChecker):
         #if user has moderator or admin in the nodespace containing the comment to edit, or if the user created the comment, and comment has no replies yet
     
     @classmethod
-    def can_create_writeup(cls, db_tuple, target, actor):
+    def can_create_writeup_under(cls, db_tuple, target, actor):
+    #TODO: too much repetition across create comment, reply to comment, and create writeup methods.  refactor.
         pgdb, neodb = db_tuple
-        #if user user has contributor, editor, or admin in the nodespace containing the parent category
+        assert isinstance(target, CategoryNode)
+        parent_nodespace = target.get_parent_nodespace(neodb)
+        parent_nodespace_id = parent_nodespace._properties[NodespaceNode.NODESPACE_ID_FIELD_NAME]
+        ns_access = NodespaceAccessEntry.get_existing_access_entry(pgdb, parent_nodespace_id, actor.user_id)
+        ns_privs = ns_access.nodespace_privileges if ns_access is not None else None
+        sufficient_privs = frozenset([NodespacePrivilegeSet.CONTRIBUTOR, NodespacePrivilegeSet.ADMIN])
+        return ns_privs.has_one_or_more_privileges(sufficient_privs) if ns_privs is not None else False
     
     @classmethod
     def can_edit_writeup(cls, db_tuple, target, actor):
