@@ -1,0 +1,12 @@
+$def with (cat_tree_json)
+
+<div id="hello_cytograph" style="width:800px;height:500px;"></div>
+
+<script type="text/javascript">
+$$(function(){
+    $$('#hello_cytograph').cytoscape({
+                            layout: {name: 'arbor'},
+                            elements: $:cat_tree_json
+                        });
+});
+</script>
