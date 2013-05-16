@@ -632,6 +632,25 @@ class CategoryNode(TripelNode):
         query_result = cypher.execute(neodb, parent_info_cql, {'cat_node_unq_id': self._properties[self.UNIQUE_NODE_ID_FIELD_NAME]})[0]
         assert len(query_result) == 1 and len(query_result[0]) == 1
         return NodespaceNode._init_from_properties(query_result[0][0].get_properties())
+    
+    @classmethod
+    def get_basic_nodespace_cat_tree_info(cls, neodb, nodespace_id):
+        category_info_cql = '''START ns=node:%(ns_idx_name)s(%(nodespace_id_field_name)s={nodespace_id}) 
+                                MATCH ns<-[:%(catroot_edge_type)s]-root_cat<-[:%(subcat_edge_type)s*]-user_cat
+                                WITH user_cat
+                                MATCH subcat_rel=user_cat<-[cat_edge:%(subcat_edge_type)s]-user_sub_cat
+                                RETURN user_cat.%(unq_node_id_field_name)s as par_cat_node_id, user_cat.%(cat_name_field_name)s as par_cat_name,
+                                    cat_edge.%(unq_edge_id_field_name)s as cat_edge_id, 
+                                    user_sub_cat.%(unq_node_id_field_name)s as sub_cat_node_id, user_sub_cat.%(cat_name_field_name)s as sub_cat_name;
+                                    ''' % {'ns_idx_name': NodespaceNode.NODESPACE_INDEX_NAME,
+                                            'nodespace_id_field_name': NodespaceNode.NODESPACE_ID_FIELD_NAME,
+                                            'unq_node_id_field_name': cls.UNIQUE_NODE_ID_FIELD_NAME,
+                                            'subcat_edge_type': SubcategoryEdge.EDGE_TYPE,
+                                            'catroot_edge_type': CategoryRootEdge.EDGE_TYPE,
+                                            'unq_edge_id_field_name': SubcategoryEdge.UNIQUE_EDGE_ID_FIELD_NAME,
+                                            'cat_name_field_name': CategoryNode.CAT_NAME_FIELD_NAME}
+        query_result = cypher.execute(neodb, category_info_cql, {'nodespace_id': nodespace_id})[0]
+        return query_result
 
 class CommentNode(TripelNode):
     NODE_TYPE = 'COMMENT'

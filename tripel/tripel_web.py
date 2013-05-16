@@ -8,6 +8,7 @@ TODO:
 
 import re
 import urllib
+import json
 
 import web
 
@@ -992,10 +993,72 @@ class metaspace_command_list(BasePage, ListTablePage):
         
         return self.wrap_content(self.basic_table_content(cmd_list), user=user)
 
+class category_list(BasePage):
+    @classmethod
+    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
+        return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.VIEW_NODESPACE_ACTION, target, actor, should_raise_insufficient_priv_ex)
+    
+    @classmethod
+    def build_cat_tree_dict(cls, query_results):
+        cat_tree_dict = {'nodes': {}, 'edges': {}}
+        for row in query_results:
+            edge_id = row[2]
+            par_cat_id, par_cat_name = row[0], row[1]
+            sub_cat_id, sub_cat_name = row[3], row[4]
+            
+            cat_tree_dict['edges'][edge_id] = {'source': sub_cat_id}
+            cat_tree_dict['edges'][edge_id]['target'] = par_cat_id
+            
+            for cat_info in [(par_cat_id, par_cat_name), (sub_cat_id, sub_cat_name)]:
+                cat_id, cat_name = cat_info
+                if cat_id not in cat_tree_dict['nodes']:
+                    cat_tree_dict['nodes'][cat_id] = cat_name
+        
+        return cat_tree_dict
+    
+    @classmethod
+    def build_cat_tree_json(cls, query_results):
+        cat_tree_dict = cls.build_cat_tree_dict(query_results)
+        node_list = [{'data': {'id': 'n%s'%cat_node_id}, 'content': web.websafe(cat_tree_dict['nodes'][cat_node_id])} for cat_node_id in cat_tree_dict['nodes']]
+        edge_list = [{'data': {'id': 'e%s'%edge_id, 'source': 'n%s'%cat_tree_dict['edges'][edge_id]['source'], 'target': 'n%s'%cat_tree_dict['edges'][edge_id]['target']}} for edge_id in cat_tree_dict['edges']]
+        
+        cat_tree_json_dict = {'nodes': node_list, 'edges': edge_list}
+        return json.dumps(cat_tree_json_dict, indent=2)
+    
+    def render_page(self, ms_session):
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, web.input().get('nodespace_id'))
+        self.is_allowed_to_use(nodespace, user)
+        
+        cat_tree_info = tc.CategoryNode.get_basic_nodespace_cat_tree_info(NEODB, nodespace.nodespace_id)
+        cat_tree_json = self.build_cat_tree_json(cat_tree_info)
+        return self.wrap_content(RENDER.view_graph_template(cat_tree_json), user=user)
+
+class writeup_list(BasePage):
+    pass
+
+class comment_thread_list(BasePage):
+    pass
+
+class comment_thread_view(BasePage):
+    pass
+
+class category_view(BasePage):
+    pass
+
+class comment_view(BasePage):
+    pass
+
+class writeup_view(BasePage):
+    pass
+
 class comment_create_form(BasePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
         return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.CREATE_COMMENT_ACTION, target, actor, should_raise_insufficient_priv_ex)
+    
+    def render_page(self, ms_session):
+        pass
 
 class comment_reply_form(BasePage):
     pass
@@ -1018,13 +1081,6 @@ class tripel_style(BasePage):
     
     def render_page(self, ms_session):
         return RENDER.css.tripelstyle()
-
-#TODO: make this work
-class static_content(BasePage):
-    
-    @classmethod
-    def get_page_subpath(cls):
-        return '/static/'
     
 
 
@@ -1045,7 +1101,9 @@ page_classes = [tripel_style, login_form, login_verify, logout, auth_status,
                 nodespace_access_view, user_view, user_info_edit_form, user_info_edit, user_change_pass_form, user_change_pass,
                 nodespace_list_accessible, nodespace_list_all, user_list_nodespace, user_list_all, 
                 metaspace_access_edit_form, metaspace_access_edit, 
-                nodespace_access_edit_form, nodespace_access_edit, metaspace_command_list]
+                nodespace_access_edit_form, nodespace_access_edit, metaspace_command_list,
+                category_list, writeup_list, comment_thread_list,
+                comment_create_form, comment_reply_form, comment_edit_form, writeup_create_form, writeup_edit_form]
 
 urls_list = []
 for cls in page_classes:
