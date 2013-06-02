@@ -993,46 +993,45 @@ class metaspace_command_list(BasePage, ListTablePage):
         
         return self.wrap_content(self.basic_table_content(cmd_list), user=user)
 
-class category_list(BasePage):
+class GraphViewPage(object):
     @classmethod
-    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.VIEW_NODESPACE_ACTION, target, actor, should_raise_insufficient_priv_ex)
-    
-    @classmethod
-    def build_cat_tree_dict(cls, query_results):
-        cat_tree_dict = {'nodes': {}, 'edges': {}}
-        for row in query_results:
-            edge_id = row[2]
-            par_cat_id, par_cat_name = row[0], row[1]
-            sub_cat_id, sub_cat_name = row[3], row[4]
-            
-            cat_tree_dict['edges'][edge_id] = {'source': sub_cat_id}
-            cat_tree_dict['edges'][edge_id]['target'] = par_cat_id
-            
-            for cat_info in [(par_cat_id, par_cat_name), (sub_cat_id, sub_cat_name)]:
-                cat_id, cat_name = cat_info
-                if cat_id not in cat_tree_dict['nodes']:
-                    cat_tree_dict['nodes'][cat_id] = cat_name
-        
-        return cat_tree_dict
-    
-    @classmethod
-    def build_cat_tree_json(cls, query_results):
-        cat_tree_dict = cls.build_cat_tree_dict(query_results)
-        node_list = [{'data': {'id': 'n%s'%cat_node_id}, 'content': web.websafe(cat_tree_dict['nodes'][cat_node_id])} for cat_node_id in cat_tree_dict['nodes']]
-        edge_list = [{'data': {'id': 'e%s'%edge_id, 'source': 'n%s'%cat_tree_dict['edges'][edge_id]['source'], 'target': 'n%s'%cat_tree_dict['edges'][edge_id]['target']}} for edge_id in cat_tree_dict['edges']]
+    def build_cat_tree_json(cls, cat_tree_dict):
+        node_list, edge_list = [], []
+        for cat_node_id in cat_tree_dict['nodes']:
+            node_list.append({'data': {'id': 'n%s'%cat_node_id, 'name': web.websafe(cat_tree_dict['nodes'][cat_node_id]['trpl_data'][tc.CategoryNode.CAT_NAME_FIELD_NAME])}})
+        for edge_id in cat_tree_dict['edges']:
+            edge_list.append({'data': {'id': 'e%s'%edge_id, 'source': 'n%s'%cat_tree_dict['edges'][edge_id]['source'], 'target': 'n%s'%cat_tree_dict['edges'][edge_id]['target']}})
         
         cat_tree_json_dict = {'nodes': node_list, 'edges': edge_list}
         return json.dumps(cat_tree_json_dict, indent=2)
+
+class category_list(BasePage, GraphViewPage):
+    @classmethod
+    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
+        return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.VIEW_NODESPACE_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     def render_page(self, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, web.input().get('nodespace_id'))
         self.is_allowed_to_use(nodespace, user)
         
-        cat_tree_info = tc.CategoryNode.get_basic_nodespace_cat_tree_info(NEODB, nodespace.nodespace_id)
+        cat_tree_info = tc.NodespaceNode.get_nodespace_categories(NEODB, nodespace.nodespace_id)
         cat_tree_json = self.build_cat_tree_json(cat_tree_info)
         return self.wrap_content(RENDER.view_graph_template(cat_tree_json), user=user)
+'''
+TODO:
+nodespace overview.  can show:
+    categories
+    categories and writeups
+    categories and writeups and comment thread heads
+    saved search (watched nodes, etc)
+click on a node and see:
+    node contents
+    commands for operating on node (availability based on perms):
+        category: edit, delete, add child cat, add writeup, recategorize (new parent)
+        writeup: edit, delete, comment on, recategorize
+        comment: edit, delete, reply
+'''
 
 class writeup_list(BasePage):
     pass
