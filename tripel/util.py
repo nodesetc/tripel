@@ -84,7 +84,7 @@ def a_elt(link_text=None, href_att_val=None, class_att_val=None, id_att_val=None
     id_att_txt = '' if id_att_val is None else ' id="%s"' % id_att_val
     return '<a %s>%s</a>' % (' '.join([href_att_txt, class_att_txt, id_att_txt]), link_text)
 
-#the idea here is to be able to easily crate dictionaries representing arbitrary nodes/edges/graphs,
+#the idea here is to be able to easily create dictionaries representing arbitrary nodes/edges/graphs,
 #where the nodes and edges don't necessarily conform to the constraints (e.g. required fields, field names) of
 #the tripel node and edge classes.  these dictionaries can be consumed by things like the cytoscape graph
 #rendering library (in that case, after being turned into json).  this allows for the use of ad-hoc neo4j query results
