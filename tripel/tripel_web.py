@@ -994,11 +994,30 @@ class metaspace_command_list(BasePage, ListTablePage):
         return self.wrap_content(self.basic_table_content(cmd_list), user=user)
 
 class GraphViewPage(object):
+    #TODO: have central method for converting a given node/edge type dict into json for inclusion in larger json object for display.  build_cat_tree_json
+    # can call that conversion method for each node/edge.  for now, stylesheet can probably apply to all graph types if each node/edge type is styled the same
+    # in all graphs.
+    @classmethod
+    def _get_cytoscape_node_dict(cls, adhoc_node_dict):
+        cs_node_dict = {'data': {'id': 'n%s'%adhoc_node_dict['node_id'], 
+                                'node_type': adhoc_node_dict['node_type']}}
+
+        if adhoc_node_dict['node_type'] == tc.CategoryNode.NODE_TYPE:
+            cs_node_dict['data']['disp_text'] = web.websafe(adhoc_node_dict['node_properties'][tc.CategoryNode.CAT_NAME_FIELD_NAME])
+        elif adhoc_node_dict['node_type'] == tc.WriteupNode.NODE_TYPE:
+            cs_node_dict['data']['disp_text'] = web.websafe(adhoc_node_dict['node_properties'][tc.WriteupNode.WRITEUP_TITLE_FIELD_NAME])
+        
+        return cs_node_dict
+    
+    def _get_cytoscape_edge_dict(cls, adhoc_edge_dict):
+        pass
+    
     @classmethod
     def build_cat_tree_json(cls, cat_tree_dict):
         node_list, edge_list = [], []
         for cat_node_id in cat_tree_dict['nodes']:
-            node_list.append({'data': {'id': 'n%s'%cat_node_id, 'name': web.websafe(cat_tree_dict['nodes'][cat_node_id]['trpl_data'][tc.CategoryNode.CAT_NAME_FIELD_NAME])}})
+            cat_node = cat_tree_dict['nodes'][cat_node_id]
+            node_list.append(cls._get_cytoscape_node_dict(cat_node))
         for edge_id in cat_tree_dict['edges']:
             edge_list.append({'data': {'id': 'e%s'%edge_id, 'source': 'n%s'%cat_tree_dict['edges'][edge_id]['source'], 'target': 'n%s'%cat_tree_dict['edges'][edge_id]['target']}})
         
@@ -1015,9 +1034,23 @@ class category_list(BasePage, GraphViewPage):
         nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, web.input().get('nodespace_id'))
         self.is_allowed_to_use(nodespace, user)
         
-        cat_tree_info = tc.NodespaceNode.get_nodespace_categories(NEODB, nodespace.nodespace_id)
+        cat_tree_info = tc.AdhocNeoQueries.get_nodespace_categories(NEODB, nodespace.nodespace_id)
         cat_tree_json = self.build_cat_tree_json(cat_tree_info)
         return self.wrap_content(RENDER.view_graph_template(cat_tree_json), user=user)
+
+class nodespace_overview(BasePage, GraphViewPage):
+    @classmethod
+    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
+        return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.VIEW_NODESPACE_ACTION, target, actor, should_raise_insufficient_priv_ex)
+    
+    def render_page(self, ms_session):
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, web.input().get('nodespace_id'))
+        self.is_allowed_to_use(nodespace, user)
+        
+        overview_graph_info = tc.AdhocNeoQueries.get_nodespace_categories_and_writeups(NEODB, nodespace.nodespace_id)
+        overview_graph_json = self.build_cat_tree_json(overview_graph_info)
+        return self.wrap_content(RENDER.view_graph_template(overview_graph_json), user=user)
 '''
 TODO:
 nodespace overview.  can show:
@@ -1101,7 +1134,7 @@ page_classes = [tripel_style, login_form, login_verify, logout, auth_status,
                 nodespace_list_accessible, nodespace_list_all, user_list_nodespace, user_list_all, 
                 metaspace_access_edit_form, metaspace_access_edit, 
                 nodespace_access_edit_form, nodespace_access_edit, metaspace_command_list,
-                category_list, writeup_list, comment_thread_list,
+                category_list, nodespace_overview, writeup_list, comment_thread_list,
                 comment_create_form, comment_reply_form, comment_edit_form, writeup_create_form, writeup_edit_form]
 
 urls_list = []

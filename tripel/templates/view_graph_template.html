@@ -1,6 +1,6 @@
 $def with (cat_tree_json)
 
-<div id="hello_cytograph" style="width:700px;height:350px;"></div>
+<div id="hello_cytograph" style="width:700px;height:325px;"></div>
 
 <script type="text/javascript">
 $$(function(){
@@ -8,14 +8,28 @@ $$(function(){
                             style: cytoscape.stylesheet()
                                     .selector('node')
                                         .css({
-                                            'content': 'data(name)',
-                                            'shape': 'ellipse'
+                                            'content': 'data(disp_text)',
+                                            'color': '#fff',
+                                            'text-valign': 'center',
+                                            'text-halign': 'center'
+                                        })
+                                    .selector("node[node_type = 'CATEGORY']")
+                                        .css({
+                                            'shape': 'ellipse',
+                                            'height': 20,
+                                            'width': 45
+                                        })
+                                    .selector("node[node_type = 'WRITEUP']")
+                                        .css({
+                                            'shape': 'rectangle',
+                                            'height': 20,
+                                            'width': 45
                                         })
                                     .selector('edge')
                                         .css({
                                             'target-arrow-shape': 'triangle'
                                         }),
-                            layout: {name: 'breadthfirst'},
+                            layout: {name: 'breadthfirst', directed: true},
                             elements: $:cat_tree_json
                         });
 });

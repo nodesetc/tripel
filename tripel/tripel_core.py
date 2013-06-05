@@ -289,6 +289,12 @@ class NeoUtil(object):
 
 #TODO: each graph element should have a gremlin data integrity check fn, to be run in the transaction and throw an 
 # error if expected constraints aren't met (e.g., edge connecting to the wrong node type)
+#TODO: i am very tempted to use networkx to store graphs, but that might be overkill.  if i did,
+# i think it would only matter when i create a graph object from query results.  graph elements (nodes and
+# edges) would be instances of TripelGraphElement (which i think would require implementing the hashcode method,
+# which i think would just be the hash of the element's unique id).  then i'd do away with the util.build_adhoc_*_dict 
+# functions (which would mean making the required fields check optional for graph element objects, or always retrieving
+# all required fields).
 class TripelGraphElement(object):
     FULLTEXT_IDX_CONFIG = {'provider': 'lucene', 'type': 'fulltext', 'to_lower_case': 'true'}
     
@@ -490,32 +496,6 @@ class TripelNode(TripelGraphElement):
     def get_existing_node_by_unique_id(cls, neodb, unique_node_id):
         return cls._init_from_neo_node(cls.get_unique_node_id_index(neodb).get(cls.UNIQUE_NODE_ID_FIELD_NAME, str(unique_node_id))[0])
     
-    @classmethod
-    def _get_node_dict(cls, node_id, node_type, node_data):
-        return {'node_id': node_id, 'trpl_type': node_type, 'trpl_data': node_data}
-    
-    @classmethod
-    def _get_edge_dict(cls, edge_id, edge_type, source, target, edge_data):
-        return {'edge_id': edge_id, 'trpl_type': edge_type, 'source': source, 'target': target, 'trpl_data': edge_data}
-    
-    @classmethod
-    def _build_graph_dict(cls, query_results, get_node_and_edge_dicts_fn):
-        graph_dict = {'nodes': {}, 'edges': {}}
-        for row in query_results:
-            nodes, edges = get_node_and_edge_dicts_fn(row)
-            
-            for node in nodes:
-                node_id = node['node_id']
-                if node_id not in graph_dict['nodes']:
-                    graph_dict['nodes'][node_id] = node
-            
-            for edge in edges:
-                edge_id = edge['edge_id']
-                if edge_id not in graph_dict['edges']:
-                    graph_dict['edges'][edge_id] = edge
-        
-        return graph_dict
-    
     #TODO: deletion
     #TODO: lookup
     #TODO: children added/modified after a given date (for notifications)
@@ -549,104 +529,6 @@ class NodespaceNode(TripelNode):
         properties = properties.copy()
         properties[cls.NODESPACE_ID_FIELD_NAME] = nodespace_id
         return cls._create_new_node(db_tuple, properties, {}, should_run_gremlin_immediately)
-    
-    @classmethod
-    def get_nodespace_categories(cls, neodb, nodespace_id):
-        def get_node_and_edge_dicts(query_row):
-            cat_id, cat_name = query_row[0], query_row[1]
-            subcat_edge_id = query_row[2]
-            subcat_id, subcat_name = query_row[3], query_row[4]
-            
-            cat_node = cls._get_node_dict(cat_id, CategoryNode.NODE_TYPE, {CategoryNode.CAT_NAME_FIELD_NAME: cat_name})
-            subcat_node = cls._get_node_dict(subcat_id, CategoryNode.NODE_TYPE, {CategoryNode.CAT_NAME_FIELD_NAME: subcat_name})
-            subcat_edge = cls._get_edge_dict(subcat_edge_id, SubcategoryEdge.EDGE_TYPE, subcat_id, cat_id, None)
-            
-            nodes = filter(lambda node: node['node_id'] is not None, [cat_node, subcat_node])
-            edges = filter(lambda edge: edge['edge_id'] is not None, [subcat_edge])
-            return (nodes, edges)
-        
-        def build_cat_tree_dict(query_results):
-            cat_tree_dict = {'nodes': {}, 'edges': {}}
-            for row in query_results:
-                cat_id, cat_name = row[0], row[1]
-                subcat_edge_id = row[2]
-                subcat_id, subcat_name = row[3], row[4]
-                
-                cat_tree_dict['edges'][subcat_edge_id] = {'source': cat_id}
-                cat_tree_dict['edges'][subcat_edge_id]['target'] = subcat_id
-                
-                for cat_info in [(cat_id, cat_name), (subcat_id, subcat_name)]:
-                    cat_id, cat_name = cat_info
-                    if cat_id not in cat_tree_dict['nodes']:
-                        cat_tree_dict['nodes'][cat_id] = cat_name
-            
-            return cat_tree_dict
-        
-        cat_list_cql = '''START ns=node:%(ns_idx_name)s(%(nodespace_id_field_name)s={nodespace_id}) 
-                                MATCH ns<-[:%(catroot_edge_type)s]-root_cat<-[:%(subcat_edge_type)s*]-user_cat
-                                WITH user_cat
-                                MATCH subcat_p=user_cat<-[subcat_edge:%(subcat_edge_type)s]-user_subcat
-                                RETURN user_cat.%(unq_node_id_field_name)s as cat_node_id, user_cat.%(cat_name_field_name)s as cat_name,
-                                    subcat_edge.%(unq_edge_id_field_name)s as subcat_edge_id, 
-                                    user_subcat.%(unq_node_id_field_name)s as subcat_node_id, user_subcat.%(cat_name_field_name)s as subcat_name;
-                                    ''' % {'ns_idx_name': NodespaceNode.NODESPACE_INDEX_NAME,
-                                            'nodespace_id_field_name': NodespaceNode.NODESPACE_ID_FIELD_NAME,
-                                            'unq_node_id_field_name': cls.UNIQUE_NODE_ID_FIELD_NAME,
-                                            'subcat_edge_type': SubcategoryEdge.EDGE_TYPE,
-                                            'catroot_edge_type': CategoryRootEdge.EDGE_TYPE,
-                                            'unq_edge_id_field_name': SubcategoryEdge.UNIQUE_EDGE_ID_FIELD_NAME,
-                                            'cat_name_field_name': CategoryNode.CAT_NAME_FIELD_NAME}
-        query_results = cypher.execute(neodb, cat_list_cql, {'nodespace_id': nodespace_id})[0]
-        #return build_cat_tree_dict(query_results)
-        return cls._build_graph_dict(query_results, get_node_and_edge_dicts)
-    
-    @classmethod
-    def get_nodespace_categories_and_writeups(cls, neodb, nodespace_id):
-        def get_node_and_edge_dicts(query_row):
-            cat_id, cat_name = row[0], row[1]
-            subcat_edge_id = row[2]
-            subcat_id, subcat_name = row[3], row[4]
-            wrup_edge_id = row[5]
-            wrup_id, wrup_title = row[6], row[7]
-            subcat_wrup_edge_id = row[8]
-            subcat_wrup_id, subcat_wrup_title = row[9], row[10]
-            
-            cat_node = cls._get_node_dict(cat_id, CategoryNode.NODE_TYPE, {CategoryNode.CAT_NAME_FIELD_NAME: cat_name})
-            subcat_node = cls._get_node_dict(subcat_id, CategoryNode.NODE_TYPE, {CategoryNode.CAT_NAME_FIELD_NAME: subcat_name})
-            wrup_node = cls._get_node_dict(wrup_id, WriteupNode.NODE_TYPE, {WriteupNode.WRITEUP_TITLE_FIELD_NAME: wrup_title})
-            subcat_wrup_node = cls._get_node_dict(subcat_wrup_id, WriteupNode.NODE_TYPE, {WriteupNode.WRITEUP_TITLE_FIELD_NAME: subcat_wrup_title})
-            subcat_edge = cls._get_edge_dict(subcat_edge_id, SubcategoryEdge.EDGE_TYPE, subcat_id, cat_id, None)
-            wrup_edge = cls._get_edge_dict(wrup_edge_id, CategorizationEdge.EDGE_TYPE, wrup_id, cat_id, None)
-            subcat_wrup_edge = cls._get_edge_dict(subcat_wrup_edge_id, CategorizationEdge.EDGE_TYPE, subcat_wrup_id, subcat_id, None)
-            
-            nodes = filter(lambda node: node['node_id'] is not None, [cat_node, subcat_node, wrup_node, subcat_wrup_node])
-            edges = filter(lambda edge: edge['edge_id'] is not None, [subcat_edge, wrup_edge, subcat_wrup_edge])
-            return (nodes, edges)
-        
-        cat_and_wrup_list_cql = '''START ns=node:%(ns_idx_name)s(%(nodespace_id_field_name)s={nodespace_id}) 
-                                MATCH ns<-[:%(catroot_edge_type)s]-root_cat<-[:%(subcat_edge_type)s*]-user_cat
-                                WITH user_cat
-                                MATCH subcat_p=user_cat<-[subcat_edge:%(subcat_edge_type)s]-user_subcat,
-                                    wrup_p=user_cat<-[wrup_edge?:%(categorzn_edge_type)s]-wrup,
-                                    subwrup_p=user_subcat<-[subcat_wrup_edge?:%(categorzn_edge_type)s]-subcat_wrup
-                                RETURN user_cat.%(unq_node_id_field_name)s as cat_node_id, user_cat.%(cat_name_field_name)s as cat_name,
-                                    subcat_edge.%(unq_edge_id_field_name)s as subcat_edge_id, 
-                                    user_subcat.%(unq_node_id_field_name)s as subcat_node_id, user_subcat.%(cat_name_field_name)s as subcat_name, 
-                                    wrup_edge.%(unq_edge_id_field_name)s as wrup_edge_id, 
-                                    wrup.%(unq_node_id_field_name)s as wrup_node_id, wrup.%(wrup_title_field_name)s as wrup_title, 
-                                    subcat_wrup_edge.%(unq_edge_id_field_name)s subcat_wrup_edge_id, 
-                                    subcat_wrup.%(unq_node_id_field_name)s as subcat_wrup_node_id, subcat_wrup.%(wrup_title_field_name)s as subcat_wrup_title;
-                                    ''' % {'ns_idx_name': NodespaceNode.NODESPACE_INDEX_NAME,
-                                            'nodespace_id_field_name': NodespaceNode.NODESPACE_ID_FIELD_NAME,
-                                            'unq_node_id_field_name': TripelNode.UNIQUE_NODE_ID_FIELD_NAME,
-                                            'subcat_edge_type': SubcategoryEdge.EDGE_TYPE,
-                                            'catroot_edge_type': CategoryRootEdge.EDGE_TYPE,
-                                            'categorzn_edge_type': CategorizationEdge.EDGE_TYPE,
-                                            'unq_edge_id_field_name': SubcategoryEdge.UNIQUE_EDGE_ID_FIELD_NAME,
-                                            'cat_name_field_name': CategoryNode.CAT_NAME_FIELD_NAME,
-                                            'wrup_title_field_name': WriteupNode.WRITEUP_TITLE_FIELD_NAME}
-        query_results = cypher.execute(neodb, cat_and_wrup_list_cql, {'nodespace_id': nodespace_id})[0]
-        return cls._build_graph_dict(query_results, get_node_and_edge_dicts)
 
 class UserNode(TripelNode):
     NODE_TYPE = 'USER'
@@ -895,6 +777,87 @@ class RecommendationNode(NotificationNode):
 class AlertNode(NotificationNode):
     NODE_TYPE = 'USR_ALERT'
     #TODO: i think this just links to user or nodespace and is essentially a message or something
+
+class AdhocNeoQueries(object):
+    @staticmethod
+    def get_nodespace_categories(neodb, nodespace_id):
+        def get_node_and_edge_dicts(query_row):
+            cat_id, cat_name = query_row[0], query_row[1]
+            subcat_edge_id = query_row[2]
+            subcat_id, subcat_name = query_row[3], query_row[4]
+            
+            cat_node = util.build_adhoc_node_dict(cat_id, CategoryNode.NODE_TYPE, {CategoryNode.CAT_NAME_FIELD_NAME: cat_name})
+            subcat_node = util.build_adhoc_node_dict(subcat_id, CategoryNode.NODE_TYPE, {CategoryNode.CAT_NAME_FIELD_NAME: subcat_name})
+            subcat_edge = util.build_adhoc_edge_dict(subcat_edge_id, SubcategoryEdge.EDGE_TYPE, subcat_id, cat_id, None)
+            
+            nodes = filter(lambda node: node['node_id'] is not None, [cat_node, subcat_node])
+            edges = filter(lambda edge: edge['edge_id'] is not None, [subcat_edge])
+            return (nodes, edges)
+        
+        cat_list_cql = '''START ns=node:%(ns_idx_name)s(%(nodespace_id_field_name)s={nodespace_id}) 
+                                MATCH ns<-[:%(catroot_edge_type)s]-root_cat<-[:%(subcat_edge_type)s*]-user_cat
+                                WITH user_cat
+                                MATCH subcat_p=user_cat<-[subcat_edge:%(subcat_edge_type)s]-user_subcat
+                                RETURN user_cat.%(unq_node_id_field_name)s as cat_node_id, user_cat.%(cat_name_field_name)s as cat_name,
+                                    subcat_edge.%(unq_edge_id_field_name)s as subcat_edge_id, 
+                                    user_subcat.%(unq_node_id_field_name)s as subcat_node_id, user_subcat.%(cat_name_field_name)s as subcat_name;
+                                    ''' % {'ns_idx_name': NodespaceNode.NODESPACE_INDEX_NAME,
+                                            'nodespace_id_field_name': NodespaceNode.NODESPACE_ID_FIELD_NAME,
+                                            'unq_node_id_field_name': TripelNode.UNIQUE_NODE_ID_FIELD_NAME,
+                                            'subcat_edge_type': SubcategoryEdge.EDGE_TYPE,
+                                            'catroot_edge_type': CategoryRootEdge.EDGE_TYPE,
+                                            'unq_edge_id_field_name': SubcategoryEdge.UNIQUE_EDGE_ID_FIELD_NAME,
+                                            'cat_name_field_name': CategoryNode.CAT_NAME_FIELD_NAME}
+        query_results = cypher.execute(neodb, cat_list_cql, {'nodespace_id': nodespace_id})[0]
+        return util.build_adhoc_graph_dict(query_results, get_node_and_edge_dicts)
+    
+    @staticmethod
+    def get_nodespace_categories_and_writeups(neodb, nodespace_id):
+        def get_node_and_edge_dicts(query_row):
+            cat_id, cat_name = query_row[0], query_row[1]
+            subcat_edge_id = query_row[2]
+            subcat_id, subcat_name = query_row[3], query_row[4]
+            wrup_edge_id = query_row[5]
+            wrup_id, wrup_title = query_row[6], query_row[7]
+            subcat_wrup_edge_id = query_row[8]
+            subcat_wrup_id, subcat_wrup_title = query_row[9], query_row[10]
+            
+            cat_node = util.build_adhoc_node_dict(cat_id, CategoryNode.NODE_TYPE, {CategoryNode.CAT_NAME_FIELD_NAME: cat_name})
+            subcat_node = util.build_adhoc_node_dict(subcat_id, CategoryNode.NODE_TYPE, {CategoryNode.CAT_NAME_FIELD_NAME: subcat_name})
+            wrup_node = util.build_adhoc_node_dict(wrup_id, WriteupNode.NODE_TYPE, {WriteupNode.WRITEUP_TITLE_FIELD_NAME: wrup_title})
+            subcat_wrup_node = util.build_adhoc_node_dict(subcat_wrup_id, WriteupNode.NODE_TYPE, {WriteupNode.WRITEUP_TITLE_FIELD_NAME: subcat_wrup_title})
+            subcat_edge = util.build_adhoc_edge_dict(subcat_edge_id, SubcategoryEdge.EDGE_TYPE, subcat_id, cat_id, None)
+            wrup_edge = util.build_adhoc_edge_dict(wrup_edge_id, CategorizationEdge.EDGE_TYPE, wrup_id, cat_id, None)
+            subcat_wrup_edge = util.build_adhoc_edge_dict(subcat_wrup_edge_id, CategorizationEdge.EDGE_TYPE, subcat_wrup_id, subcat_id, None)
+            
+            nodes = filter(lambda node: node['node_id'] is not None, [cat_node, subcat_node, wrup_node, subcat_wrup_node])
+            edges = filter(lambda edge: edge['edge_id'] is not None, [subcat_edge, wrup_edge, subcat_wrup_edge])
+            return (nodes, edges)
+        
+        cat_and_wrup_list_cql = '''START ns=node:%(ns_idx_name)s(%(nodespace_id_field_name)s={nodespace_id}) 
+                                MATCH ns<-[:%(catroot_edge_type)s]-root_cat<-[:%(subcat_edge_type)s*]-user_cat
+                                WITH user_cat
+                                MATCH subcat_p=user_cat<-[subcat_edge:%(subcat_edge_type)s]-user_subcat,
+                                    wrup_p=user_cat<-[wrup_edge?:%(categorzn_edge_type)s]-wrup,
+                                    subwrup_p=user_subcat<-[subcat_wrup_edge?:%(categorzn_edge_type)s]-subcat_wrup
+                                RETURN user_cat.%(unq_node_id_field_name)s as cat_node_id, user_cat.%(cat_name_field_name)s as cat_name,
+                                    subcat_edge.%(unq_edge_id_field_name)s as subcat_edge_id, 
+                                    user_subcat.%(unq_node_id_field_name)s as subcat_node_id, user_subcat.%(cat_name_field_name)s as subcat_name, 
+                                    wrup_edge.%(unq_edge_id_field_name)s as wrup_edge_id, 
+                                    wrup.%(unq_node_id_field_name)s as wrup_node_id, wrup.%(wrup_title_field_name)s as wrup_title, 
+                                    subcat_wrup_edge.%(unq_edge_id_field_name)s as subcat_wrup_edge_id, 
+                                    subcat_wrup.%(unq_node_id_field_name)s as subcat_wrup_node_id, subcat_wrup.%(wrup_title_field_name)s as subcat_wrup_title;
+                                    ''' % {'ns_idx_name': NodespaceNode.NODESPACE_INDEX_NAME,
+                                            'nodespace_id_field_name': NodespaceNode.NODESPACE_ID_FIELD_NAME,
+                                            'unq_node_id_field_name': TripelNode.UNIQUE_NODE_ID_FIELD_NAME,
+                                            'subcat_edge_type': SubcategoryEdge.EDGE_TYPE,
+                                            'catroot_edge_type': CategoryRootEdge.EDGE_TYPE,
+                                            'categorzn_edge_type': CategorizationEdge.EDGE_TYPE,
+                                            'unq_edge_id_field_name': SubcategoryEdge.UNIQUE_EDGE_ID_FIELD_NAME,
+                                            'cat_name_field_name': CategoryNode.CAT_NAME_FIELD_NAME,
+                                            'wrup_title_field_name': WriteupNode.WRITEUP_TITLE_FIELD_NAME}
+        query_results = cypher.execute(neodb, cat_and_wrup_list_cql, {'nodespace_id': nodespace_id})[0]
+        return util.build_adhoc_graph_dict(query_results, get_node_and_edge_dicts)
 
 def init_neodb(db_tuple):
     pgdb, neodb = db_tuple

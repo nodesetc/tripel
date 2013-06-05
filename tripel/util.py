@@ -83,3 +83,32 @@ def a_elt(link_text=None, href_att_val=None, class_att_val=None, id_att_val=None
     class_att_txt = '' if class_att_val is None else ' class="%s"' % class_att_val
     id_att_txt = '' if id_att_val is None else ' id="%s"' % id_att_val
     return '<a %s>%s</a>' % (' '.join([href_att_txt, class_att_txt, id_att_txt]), link_text)
+
+#the idea here is to be able to easily crate dictionaries representing arbitrary nodes/edges/graphs,
+#where the nodes and edges don't necessarily conform to the constraints (e.g. required fields, field names) of
+#the tripel node and edge classes.  these dictionaries can be consumed by things like the cytoscape graph
+#rendering library (in that case, after being turned into json).  this allows for the use of ad-hoc neo4j query results
+#that don't necessarily get full tripel objects (which for postgres results, would just be a list of dictionaries).
+def build_adhoc_node_dict(node_id, node_type, node_data):
+    return {'node_id': node_id, 'node_type': node_type, 'node_properties': node_data}
+
+def build_adhoc_edge_dict(edge_id, edge_type, source, target, edge_data):
+    return {'edge_id': edge_id, 'edge_type': edge_type, 'source': source, 'target': target, 'edge_properties': edge_data}
+
+def build_adhoc_graph_dict(query_results, get_node_and_edge_dicts_fn):
+    graph_dict = {'nodes': {}, 'edges': {}}
+    for row in query_results:
+        nodes, edges = get_node_and_edge_dicts_fn(row)
+        
+        for node in nodes:
+            node_id = node['node_id']
+            if node_id not in graph_dict['nodes']:
+                graph_dict['nodes'][node_id] = node
+        
+        for edge in edges:
+            edge_id = edge['edge_id']
+            if edge_id not in graph_dict['edges']:
+                graph_dict['edges'][edge_id] = edge
+    
+    return graph_dict
+
