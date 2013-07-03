@@ -1,5 +1,8 @@
 var trplApp = angular.module('trpl', ['ngResource', 'ui.state']);
 
+//TODO: should avoid also defining rootPath here, since it's already defined in python
+trplApp.value('trplConstants', {rootPath: '/tripel'});
+
 trplApp.config(
 	function($stateProvider, $routeProvider) {
 		$stateProvider
@@ -24,9 +27,9 @@ trplApp.config(
 );
 
 trplApp.service('trplBackendSvc',
-	function($http) {
+	function($http, trplConstants) {
 		this.isAllowedToUse = function(pageName, callbackFn) {
-			$http.get('/tripel/metaspace_command_list', {params: {modeselektion: 'check_is_allowed_to_use'}}).
+			$http.get(trplConstants.rootPath+'/'+pageName, {params: {modeselektion: 'check_is_allowed_to_use'}}).
 				success(function(data, status, headers, config) {
 					var isAllowedToUse = false;
 					if(data.is_allowed_to_use !== undefined) isAllowedToUse = (data.is_allowed_to_use === true);
@@ -53,7 +56,7 @@ trplApp.service('paneListSvc',
 						panes[0].isUsable = isAllowedToUseMetaspaceCmds;
 					}
 					
-					trplBackendSvc.isAllowedToUse('metaspace_cmds', callbackFn);
+					trplBackendSvc.isAllowedToUse('metaspace_command_list', callbackFn);
 					
 					return panes;
 				default:
