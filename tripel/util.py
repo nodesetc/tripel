@@ -111,4 +111,3 @@ def build_adhoc_graph_dict(query_results, get_node_and_edge_dicts_fn):
                 graph_dict['edges'][edge_id] = edge
     
     return graph_dict
-

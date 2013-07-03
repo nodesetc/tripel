@@ -1287,7 +1287,7 @@ class MetaspacePrivilegeChecker(PrivilegeChecker):
 class NodespacePrivilegeChecker(PrivilegeChecker):
     CREATE_COMMENT_ACTION, APPROVE_COMMENT_ACTION, EDIT_COMMENT_ACTION, DELETE_COMMENT_ACTION = 'create_comment_act', 'approve_comment_act', 'edit_comment_act', 'delete_comment_act'
     CREATE_WRITEUP_ACTION, APPROVE_WRITEUP_ACTION, EDIT_WRITEUP_ACTION, DELETE_WRITEUP_ACTION = 'create_writeup_act', 'approve_writeup_act', 'edit_writeup_act', 'delete_writeup_act'
-    ALTER_NODESPACE_ACTION, ALTER_NODESPACE_ACCESS_ACTION, VIEW_NODESPACE_ACTION, VIEW_USER_ACTION = 'alter_nodespace_act', 'alter_nodespace_access_act', 'view_nodespace_action', 'view_user_action'
+    ALTER_NODESPACE_ACTION, ALTER_NODESPACE_ACCESS_ACTION, VIEW_NODESPACE_ACTION, VIEW_USER_ACTION = 'alter_nodespace_act', 'alter_nodespace_access_act', 'view_nodespace_act', 'view_user_act'
     RECOGNIZED_ACTIONS = frozenset([CREATE_COMMENT_ACTION, APPROVE_COMMENT_ACTION, EDIT_COMMENT_ACTION, DELETE_COMMENT_ACTION,
                                     CREATE_WRITEUP_ACTION, APPROVE_WRITEUP_ACTION, EDIT_WRITEUP_ACTION, DELETE_WRITEUP_ACTION,
                                     ALTER_NODESPACE_ACTION, ALTER_NODESPACE_ACCESS_ACTION, VIEW_NODESPACE_ACTION])

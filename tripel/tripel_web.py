@@ -74,10 +74,17 @@ def get_session_from_cookie(pgdb):
         return None
 
 
+#TODO: you should either start referring to things like ms_session as instance vars (via self.) instead of passing 
+# them around, or you should make everything into classmethods.  either way, things that don't actually avail themselves
+# of the instantiated-ness of instance methods should be turned into classmethods.
 class BasePage(object):
     CAN_GET_PAGE = True
     CAN_POST_PAGE = True
     REQUIRES_VALID_SESSION = True
+    
+    FULL_HTML_MODE, CHECK_IS_ALLOWED_TO_USE_MODE = 'full_html', 'check_is_allowed_to_use'
+    JSON_MODE, NO_WRAPPER_HTML_MODE = 'json', 'no_wrapper_html'
+    
     
     @classmethod
     def get_page_subpath(cls):
@@ -136,6 +143,13 @@ class BasePage(object):
         content_summary = self._get_content_summary(user)
         return RENDER.outer_wrapper(self.get_page_title(), content_summary, content, util.msg_lookup, hdr_links, nav_links, cmd_links)
     
+    def render_angular_app(self, ms_session=None, user=None):
+        if user is None and ms_session is not None and ms_session.is_session_valid():
+            user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        
+        hdr_links = self._get_header_links(user)
+        return RENDER.nga(self.get_page_title(), util.msg_lookup, hdr_links)
+    
     def render_input_forwarding_form(self, forwarding_form_action=None, forwarding_target=None):
         forwarded_fields = [web.form.Hidden(name=k, value=v) for k, v in web.input().items() if k not in ['login_username', 'login_password', 'Login']]
         #TODO: null out forwarding_target if it's not pointing to something in the site
@@ -154,10 +168,14 @@ class BasePage(object):
     def GET(self):
         if self.CAN_GET_PAGE:
             return self.check_session_and_render_page()
+        else:
+            web.nomethod()
     
     def POST(self):
         if self.CAN_POST_PAGE:
             return self.check_session_and_render_page()
+        else:
+            web.nomethod()
 
     def check_session_and_render_page(self):
         ms_session = get_session_from_cookie(PGDB)
@@ -174,6 +192,47 @@ class BasePage(object):
             except tc.User.TooManyBadPasswordsException:
                 kill_session_and_cookie(PGDB, ms_session)
                 web.found(login_form.build_page_url())
+    
+    def get_page_render_fn(self, page_mode):
+        if page_mode == self.FULL_HTML_MODE:
+            return self.render_page_full_html
+        elif page_mode == self.CHECK_IS_ALLOWED_TO_USE_MODE:
+            return self.render_page_is_allowed_to_use
+        elif page_mode == self.JSON_MODE:
+            return self.render_page_json
+        elif page_mode == self.NO_WRAPPER_HTML_MODE:
+            return self.render_page_no_wrapper_html
+        
+        return None
+    
+    #TODO: eventually, none of the subclasses will implement render_page anymore, they'll 
+    # implement the specific rendering functions mapped to page_mode values by get_page_render_fn.
+    # subclass may also extend get_page_render_fn if supporting non-standard modes.
+    def render_page(self, ms_session):
+        page_mode = web.input(modeselektion=self.FULL_HTML_MODE).get('modeselektion')
+        page_render_fn = self.get_page_render_fn(page_mode)
+        
+        # i'm not sure if this is actually an appropriate use of the 412 response code, since the RFC 
+        # indicated that it should be used based on what the request headers indicate (and this response is 
+        # based on a request parameter).  regardless, clients should ideally not encounter this anyway.
+        if page_render_fn is None:
+            raise web.preconditionfailed('unsupported page_mode')
+        
+        return page_render_fn(ms_session)
+    
+    def render_page_is_allowed_to_use(self, ms_session):
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        ret_val = {'is_allowed_to_use': self.is_allowed_to_use(None, user)}
+        return json.dumps(ret_val)
+    
+    def render_page_full_html(self, ms_session):
+        raise NotImplementedError('must be implemented by subclass')
+    
+    def render_page_json(self, ms_session):
+        raise NotImplementedError('must be implemented by subclass')
+    
+    def render_page_no_wrapper_html(self, ms_session):
+        raise NotImplementedError('must be implemented by subclass')
 
 class ListTablePage(object):
     @classmethod
@@ -212,6 +271,7 @@ class login_form(BasePage):
         return self.wrap_content(RENDER.basic_form_template(login_form_html, 'login_form', login_verify.build_page_url()))
 
 class login_verify(BasePage):
+    CAN_GET_PAGE = False
     REQUIRES_VALID_SESSION = False
     
     @classmethod
@@ -255,7 +315,7 @@ class auth_status(BasePage, ListTablePage):
             output_html = '<p>%s</p><p>%s</p>' % (output_html, self.basic_table_content([ms_session]))
         return self.wrap_content(output_html, ms_session=ms_session)
 
-class nodespace_form(object):
+class NodespaceForm(object):
     @classmethod
     def get_nodespace_form(cls, btn_content_key):
         return web.form.Form(web.form.Textbox('nodespace_name', 
@@ -264,7 +324,7 @@ class nodespace_form(object):
                                 web.form.Textarea('nodespace_description', description=util.msg_lookup('create_ns_form_ns_desc'), cols='40', rows='3'),
                                 web.form.Button(name=util.msg_lookup(btn_content_key)))
 
-class nodespace_create_form(BasePage, nodespace_form):
+class nodespace_create_form(BasePage, NodespaceForm):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
         return nodespace_create.is_allowed_to_use(target, actor, should_raise_insufficient_priv_ex)
@@ -296,7 +356,7 @@ class nodespace_create(BasePage):
         else:
             web.found(nodespace_create_form.build_page_url(web.input()))
 
-class nodespace_edit_form(BasePage, nodespace_form):
+class nodespace_edit_form(BasePage, NodespaceForm):
     def _get_content_summary(self, user):
         if user is None:
             return None
@@ -414,7 +474,7 @@ class user_invite_create(BasePage):
             
         return self.wrap_content(status_message, user=user)
 
-class invite_decide_form(object):
+class InviteDecideForm(object):
     INV_ACCEPT_FORM = web.form.Form(
                                 web.form.Textbox('username', description=util.msg_lookup('username_label')),
                                 web.form.Password(name='cleartext_password_1', description=util.msg_lookup('new_password_label')),
@@ -447,7 +507,7 @@ class invite_decide_form(object):
         ms_inv_decline_hidden = web.form.Hidden(name='was_accepted', value=cls.DECLINED).render()
         return cls.build_single_button_form(form_name, form_target, [ms_inv_code_hidden, ms_inv_decline_hidden], util.msg_lookup('inv_decline_submit_btn'))
 
-class user_invite_decide_form(BasePage, invite_decide_form):
+class user_invite_decide_form(BasePage, InviteDecideForm):
     REQUIRES_VALID_SESSION = False
         
     def render_page(self, ms_session):
@@ -544,7 +604,7 @@ class nodespace_invite_create(BasePage):
             
         return self.wrap_content(status_message, user=user)
 
-class nodespace_invite_decide_form(BasePage, invite_decide_form):
+class nodespace_invite_decide_form(BasePage, InviteDecideForm):
     REQUIRES_VALID_SESSION = False
     
     def render_page(self, ms_session):
@@ -981,7 +1041,7 @@ class metaspace_command_list(BasePage, ListTablePage):
     def _get_display_row(cls, table_data_row):
         return table_data_row
     
-    def render_page(self, ms_session):
+    def render_page_full_html(self, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         self.is_allowed_to_use(None, user)
         
@@ -1051,6 +1111,14 @@ class nodespace_overview(BasePage, GraphViewPage):
         overview_graph_info = tc.AdhocNeoQueries.get_nodespace_categories_and_writeups(NEODB, nodespace.nodespace_id)
         overview_graph_json = self.build_cat_tree_json(overview_graph_info)
         return self.wrap_content(RENDER.view_graph_template(overview_graph_json), user=user)
+
+class nga(BasePage):
+    def render_page(self, ms_session):
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        return self.render_angular_app(user=user)
+
+
+
 '''
 TODO:
 nodespace overview.  can show:
@@ -1103,30 +1171,20 @@ class writeup_create_form(BasePage):
 
 class writeup_edit_form(BasePage):
     pass
-
-class tripel_style(BasePage):
-    REQUIRES_VALID_SESSION = False
-    
-    @classmethod
-    def get_page_subpath(cls):
-        return '/css/tripelstyle.css'
-    
-    def render_page(self, ms_session):
-        return RENDER.css.tripelstyle()
     
 
 
 """
 web.py (via the call to web.application) wants a urls tuple of the form:
 urls = (
-    tripel_style.build_page_url(None, False),   tripel_style,
     login_form.build_page_url(None, False),     login_form,
+    login_verify.build_page_url(None, False),   login_verify,
     '/tripel/page_class',                       page_class
 )
 
 so build it from a list of page classes since the pages can each generate their own URL anyway.
 """
-page_classes = [tripel_style, login_form, login_verify, logout, auth_status, 
+page_classes = [login_form, login_verify, logout, auth_status, 
                 nodespace_create_form, nodespace_create, nodespace_view, nodespace_edit_form, nodespace_edit,
                 user_invite_create_form, user_invite_create, user_invite_decide_form, user_invite_decide, 
                 nodespace_invite_create_form, nodespace_invite_create, nodespace_invite_decide_form, nodespace_invite_decide, 
@@ -1135,7 +1193,8 @@ page_classes = [tripel_style, login_form, login_verify, logout, auth_status,
                 metaspace_access_edit_form, metaspace_access_edit, 
                 nodespace_access_edit_form, nodespace_access_edit, metaspace_command_list,
                 category_list, nodespace_overview, writeup_list, comment_thread_list,
-                comment_create_form, comment_reply_form, comment_edit_form, writeup_create_form, writeup_edit_form]
+                comment_create_form, comment_reply_form, comment_edit_form, writeup_create_form, writeup_edit_form,
+                nga]
 
 urls_list = []
 for cls in page_classes:
