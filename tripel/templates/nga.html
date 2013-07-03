@@ -1,0 +1,52 @@
+$def with (title, msg_lookup_fn, hdr_links)
+
+$ instance_name = msg_lookup_fn('instance_name')
+$ logout_label = msg_lookup_fn('logout_label')
+
+
+<html ng-app="trpl">
+
+<head>
+    <meta name="referrer" content="never">
+
+    <title>$title</title>
+
+    <link href="static/bootstrap/css/bootstrap.css" rel="stylesheet">
+    <link href="static/bootstrap-themes/darkstrap-v0.9.0.css" rel="stylesheet" type="text/css">
+    <link href="static/tripelstyle.css" rel="stylesheet" type="text/css">
+
+    <!-- used by both cytoscape and angular -->
+    <script src="static/jquery-1.9.1.js" type="text/javascript"></script>
+    
+    <script src="static/cytoscape/cytoscape.js" type="text/javascript"></script>
+    <script src="static/cytoscape/arbor.js" type="text/javascript"></script>
+    
+    <script src="static/angular/angular.js" type="text/javascript"></script>
+    <script src="static/angular/angular-resource.js" type="text/javascript"></script>
+    <script src="static/angular-ui-router.js" type="text/javascript"></script>
+    <script src="static/trpl-ng.js" type="text/javascript"></script>
+<!--TODO: one option would be to dynamically generate a .js file that contains a JSON obj w/ the local content.  could set mod date on headers to match file mod date, so browser could cache as needed. -->
+</head>
+
+
+<body>
+
+$if hdr_links is not None:
+    <div class="hdr-links">
+		$for link in hdr_links:
+			<a href="$link['url']">$link['display_text']</a>
+    </div>
+
+<h1>
+$instance_name
+</h1>
+
+<div ui-view></div>
+
+
+<footer>
+
+</footer>
+
+</body>
+</html>
