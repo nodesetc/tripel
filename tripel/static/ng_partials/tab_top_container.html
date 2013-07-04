@@ -1,0 +1,9 @@
+<div class="tabbable">
+    <ul class="nav nav-tabs">
+        <li ng-repeat="pane in panes | filter:{isUsable:true}" ng-class="{active:pane.isSelected}">
+            <a href="{{pane.url}}" ng-click="select(pane)">{{pane.title}}</a>
+        </li>
+    </ul>
+    <div ui-view></div>
+    <div>paneListType: {{paneListType}}</div>
+</div>
