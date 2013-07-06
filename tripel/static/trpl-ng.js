@@ -21,6 +21,7 @@ trplApp.config(
 				}).
 			state('appView.nodespaceList', {
 					url: '/nodespaces',
+					controller: 'NodespaceListCtrl',
 					templateUrl: 'static/ng_partials/nodespace_list.html'
 				});
 	}
@@ -38,7 +39,21 @@ trplApp.service('trplBackendSvc',
 				error(function(data, status, headers, config) {
 					callbackFn(false);
 				});
-		}
+		};
+		
+		this.getAccessibleNodespaces = function(callbackFn) {
+			$http.get(trplConstants.rootPath+'/nodespace_list_accessible', {params: {modeselektion: 'json'}}).
+				success(function(data, status, headers, config) {
+					if((data.length !== undefined)) {
+						callbackFn(data);
+					} else {
+						callbackFn([]);
+					}
+				}).
+				error(function(data, status, headers, config) {
+					callbackFn([]);
+				});
+		};
 	}
 );
 
@@ -64,7 +79,7 @@ trplApp.service('paneListSvc',
 					
 				case 'metaspace-commands':
 					var urlBase = '#/app_view/metaspace_cmds/';
-					var panes = [{title: 'create new nodespace', url: urlBase+'nodespace_create', isSelected: false, isUsable: false},
+					var panes = [{title: 'create new nodespace', url: urlBase+'nodespace_create', isSelected: false, isUsable: true},
 							{title: 'invite new user', url: urlBase+'user_invite_create', isSelected: false, isUsable: true},
 							{title: 'list all nodespaces', url: urlBase+'nodespace_list', isSelected: false, isUsable: true},
 							{title: 'list all users', url: urlBase+'user_list_all', isSelected: false, isUsable: true}];
@@ -90,6 +105,16 @@ trplApp.controller('SelectPaneCtrl',
 			});
 			pane.isSelected = true;
 		};
+	}
+);
+
+trplApp.controller('NodespaceListCtrl',
+	function($scope, trplBackendSvc) {
+		var nodespaceListData = $scope.nodespaceListData = {};
+		var callbackFn = function(newNSList) {
+			nodespaceListData.nodespaceList = newNSList;
+		}
+		trplBackendSvc.getAccessibleNodespaces(callbackFn);
 	}
 );
 

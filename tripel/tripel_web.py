@@ -221,9 +221,7 @@ class BasePage(object):
         return page_render_fn(ms_session)
     
     def render_page_is_allowed_to_use(self, ms_session):
-        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
-        ret_val = {'is_allowed_to_use': self.is_allowed_to_use(None, user)}
-        return json.dumps(ret_val)
+        raise NotImplementedError('must be implemented by subclass')
     
     def render_page_full_html(self, ms_session):
         raise NotImplementedError('must be implemented by subclass')
@@ -844,13 +842,19 @@ class nodespace_list_accessible(BasePage, ListTablePage):
         nodespace_name_link = util.a_elt(web.websafe(query_row.nodespace_name), nodespace_view.build_page_url(query_params={'nodespace_id':query_row.nodespace_id}))
         return {'nodespace_name_link': nodespace_name_link, 'nodespace_description': web.websafe(query_row.nodespace_description)}
     
-    def render_page(self, ms_session):
+    def render_page_full_html(self, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         accessible_nodespaces = tc.Nodespace.get_accessible_nodespaces_by_user_id(PGDB, user.user_id)
         if len(accessible_nodespaces) == 0:
             return self.wrap_content('')
         
         return self.wrap_content(self.basic_table_content(accessible_nodespaces), user=user)
+    
+    def render_page_json(self, ms_session):
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        accessible_nodespaces = tc.Nodespace.get_accessible_nodespaces_by_user_id(PGDB, user.user_id)
+        accessible_nodespaces_dict_list = [{'nodespace_name': acc_ns.nodespace_name, 'nodespace_description': acc_ns.nodespace_description} for acc_ns in accessible_nodespaces]
+        return json.dumps(accessible_nodespaces_dict_list)
 
 class nodespace_list_all(BasePage, ListTablePage):
     @classmethod
@@ -1040,6 +1044,11 @@ class metaspace_command_list(BasePage, ListTablePage):
     @classmethod
     def _get_display_row(cls, table_data_row):
         return table_data_row
+    
+    def render_page_is_allowed_to_use(self, ms_session):
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        ret_val = {'is_allowed_to_use': self.is_allowed_to_use(None, user)}
+        return json.dumps(ret_val)
     
     def render_page_full_html(self, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
