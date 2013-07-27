@@ -1,10 +1,10 @@
-var trplApp = angular.module('trpl', ['ngResource', 'ui.state']);
+var trplApp = angular.module('trpl', ['ngResource', 'ui.state', 'jm.i18next']);
 
 //TODO: should avoid also defining rootPath here, since it's already defined in python
 trplApp.value('trplConstants', {rootPath: '/tripel'});
 
 trplApp.config(
-	function($stateProvider, $routeProvider, $urlRouterProvider) {
+	function($stateProvider, $routeProvider, $urlRouterProvider, $i18nextProvider) {
 		$stateProvider
 			.state('appView', { 
 					url: '/app_view', 
@@ -65,6 +65,8 @@ trplApp.config(
 				});
 		
 		$urlRouterProvider.otherwise('/app_view/nodespaces_accessible');
+		
+		$i18nextProvider.options = {resGetPath: 'resources.json?lng=__lng__&ns=__ns__', dynamicLoad: true};
 	}
 );
 
