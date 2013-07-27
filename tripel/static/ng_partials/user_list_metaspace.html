@@ -1,0 +1,19 @@
+<div class="tab-pane active">
+    <table class="table-bordered table-condensed">
+        <tr><th>username</th><th>email address</th><th>user statement</th><th>metaspace privileges</th><th>enabled?</th><th>created by</th><th>created on</th><th>last modified by</th><th>last modified on</th></tr>
+        <tbody>
+            <tr ng-repeat="user in userListData.userList">
+                <td><a href="{{urlBase + user.user_id}}">{{user.user_name}}</a> &nbsp;</td>
+                <td>{{user.email_address}} &nbsp;</td>
+                <td> &nbsp;</td>
+                <td> &nbsp;</td>
+                <td> &nbsp;</td>
+                <td> &nbsp;</td>
+                <td> &nbsp;</td>
+                <td> &nbsp;</td>
+                <td> &nbsp;</td>
+            </tr>
+        </tbody>
+    </table>
+    <div ui-view></div>
+</div>

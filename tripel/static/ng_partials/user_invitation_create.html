@@ -1,0 +1,29 @@
+<form name="ms_inv_create_form" id="ms_inv_create_form" class="form-inline">
+    <label>
+        invitee email address <br>
+        <input type="text" name="invitee_email_addr"/>
+    </label>
+    <br><br>
+    
+    <label class="checkbox">
+        <input type="checkbox" id="metaspace_privileges_create_user" value="create_user" name="metaspace_privileges"/> 
+        Create User: the ability to create new users
+    </label>
+    <label class="checkbox">
+        <input type="checkbox" id="metaspace_privileges_create_space" value="create_space" name="metaspace_privileges"/>
+        Create Space: can create new nodespaces
+    </label>
+    <label class="checkbox">
+        <input type="checkbox" id="metaspace_privileges_super" value="super" name="metaspace_privileges"/>
+        Super User: can do anything, so hand this out judiciously
+    </label>
+    <br><br>
+    
+    <label>
+        an optional message for the user you&#39;re creating<br>
+        <textarea rows="3" cols="40" name="invitation_msg" id="invitation_msg"></textarea>
+    </label>
+    <br><br>
+    
+    <button name="create invitation" class="btn btn-inverse btn-small">create invitation</button>
+</form>

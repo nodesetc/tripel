@@ -3,9 +3,10 @@
         <tr><th>nodespace</th><th>description</th></tr>
         <tbody>
             <tr ng-repeat="nodespace in nodespaceListData.nodespaceList">
-                <td>{{nodespace.nodespace_name}} &nbsp;</td>
+                <td><a href="{{urlBase + nodespace.nodespace_id}}">{{nodespace.nodespace_name}}</a> &nbsp;</td>
                 <td>{{nodespace.nodespace_description}} &nbsp;</td>
             </tr>
         </tbody>
     </table>
+    <div ui-view></div>
 </div>
