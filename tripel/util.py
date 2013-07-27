@@ -41,17 +41,11 @@ def get_websafe_dict_copy(original_dict):
         ret_val[key] = web.websafe(ret_val[key])
     return ret_val
 
-def msg_lookup(key, content_dict={}, translation=msg.Messages.DEFAULT_TRANSLATION, should_escape_content=True):
+def msg_lookup(key, content_dict={}, locale=msg.Messages.DEFAULT_LOCALE, should_escape_content=False):
     if should_escape_content:
         content_dict = get_websafe_dict_copy(content_dict)
     
-    if hasattr(msg.Messages, key):
-        content = getattr(msg.Messages, key)
-        if translation not in content.keys():
-            translation = msg.Messages.DEFAULT_TRANSLATION
-        return content[translation] % content_dict
-    else:
-        return key
+    return msg.Messages.lookup(key, content_dict, locale)
 
 def init_web_config_mail_params():
     web.config.smtp_server = params.SMTP_SERVER
