@@ -832,7 +832,7 @@ class user_change_pass(BasePage):
         
         web.found(user_view.build_page_url(query_params={'viewed_user_id': edited_user.user_id}))
 
-class nodespace_list_accessible(BasePage, ListTablePage):
+class NodespaceList(BasePage, ListTablePage):
     @classmethod
     def _get_col_keys(cls, table_data):
         return ['nodespace_name_link', 'nodespace_description']
@@ -844,39 +844,39 @@ class nodespace_list_accessible(BasePage, ListTablePage):
     
     def render_page_full_html(self, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
-        accessible_nodespaces = tc.Nodespace.get_accessible_nodespaces_by_user_id(PGDB, user.user_id)
-        if len(accessible_nodespaces) == 0:
-            return self.wrap_content('')
+        self.is_allowed_to_use(None, user)
         
-        return self.wrap_content(self.basic_table_content(accessible_nodespaces), user=user)
+        nodespaces = self.get_nodespaces(PGDB, user)
+        page_content = self.basic_table_content(nodespaces) if len(nodespaces) > 0 else ''
+        return self.wrap_content(page_content, user=user)
     
     def render_page_json(self, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
-        accessible_nodespaces = tc.Nodespace.get_accessible_nodespaces_by_user_id(PGDB, user.user_id)
-        accessible_nodespaces_dict_list = [{'nodespace_name': acc_ns.nodespace_name, 'nodespace_description': acc_ns.nodespace_description} for acc_ns in accessible_nodespaces]
-        return json.dumps(accessible_nodespaces_dict_list)
+        self.is_allowed_to_use(None, user)
+        
+        nodespaces = self.get_nodespaces(PGDB, user)
+        nodespaces_dict_list = [{'nodespace_name': ns.nodespace_name, 
+                                            'nodespace_description': ns.nodespace_description,
+                                            'nodespace_id': ns.nodespace_id} for ns in nodespaces]
+        return json.dumps(nodespaces_dict_list, indent=2)
 
-class nodespace_list_all(BasePage, ListTablePage):
+class nodespace_list_accessible(NodespaceList):
+    @classmethod
+    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
+        return True
+    
+    @classmethod
+    def get_nodespaces(cls, PGDB, user):
+        return tc.Nodespace.get_accessible_nodespaces_by_user_id(PGDB, user.user_id)
+
+class nodespace_list_all(NodespaceList):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
         return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.LIST_ALL_SPACES_ACTION, None, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
-    def _get_col_keys(cls, table_data):
-        return ['nodespace_name_link', 'nodespace_description']
-    
-    @classmethod
-    def _get_display_row(cls, query_row):
-        nodespace_name_link = util.a_elt(web.websafe(query_row.nodespace_name), nodespace_view.build_page_url(query_params={'nodespace_id':query_row.nodespace_id}))
-        return {'nodespace_name_link': nodespace_name_link, 'nodespace_description': web.websafe(query_row.nodespace_description)}
-    
-    def render_page(self, ms_session):
-        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
-        nodespaces = tc.Nodespace.get_all_nodespaces(PGDB)
-        if len(nodespaces) == 0:
-            return self.wrap_content('')
-        
-        return self.wrap_content(self.basic_table_content(nodespaces), user=user)
+    def get_nodespaces(cls, PGDB, user):
+        return tc.Nodespace.get_all_nodespaces(PGDB)
 
 class user_list_nodespace(BasePage, ListTablePage):
     def _get_content_summary(self, user):
@@ -1068,8 +1068,9 @@ class GraphViewPage(object):
     # in all graphs.
     @classmethod
     def _get_cytoscape_node_dict(cls, adhoc_node_dict):
-        cs_node_dict = {'data': {'id': 'n%s'%adhoc_node_dict['node_id'], 
-                                'node_type': adhoc_node_dict['node_type']}}
+        cs_node_dict = {'group': 'nodes', 
+                        'data': {'id': 'n%s'%adhoc_node_dict['node_id'], 
+                                 'node_type': adhoc_node_dict['node_type']}}
 
         if adhoc_node_dict['node_type'] == tc.CategoryNode.NODE_TYPE:
             cs_node_dict['data']['disp_text'] = web.websafe(adhoc_node_dict['node_properties'][tc.CategoryNode.CAT_NAME_FIELD_NAME])
@@ -1078,20 +1079,25 @@ class GraphViewPage(object):
         
         return cs_node_dict
     
+    @classmethod
     def _get_cytoscape_edge_dict(cls, adhoc_edge_dict):
-        pass
+        cs_edge_dict = {'group': 'edges', 
+                        'data': {'id': 'e%s'%adhoc_edge_dict['edge_id'], 
+                                        'source': 'n%s'%adhoc_edge_dict['source'], 
+                                        'target': 'n%s'%adhoc_edge_dict['target']}}
+        return cs_edge_dict
     
     @classmethod
     def build_cat_tree_json(cls, cat_tree_dict):
         node_list, edge_list = [], []
-        for cat_node_id in cat_tree_dict['nodes']:
-            cat_node = cat_tree_dict['nodes'][cat_node_id]
-            node_list.append(cls._get_cytoscape_node_dict(cat_node))
+        for node_id in cat_tree_dict['nodes']:
+            node = cat_tree_dict['nodes'][node_id]
+            node_list.append(cls._get_cytoscape_node_dict(node))
         for edge_id in cat_tree_dict['edges']:
-            edge_list.append({'data': {'id': 'e%s'%edge_id, 'source': 'n%s'%cat_tree_dict['edges'][edge_id]['source'], 'target': 'n%s'%cat_tree_dict['edges'][edge_id]['target']}})
+            edge = cat_tree_dict['edges'][edge_id]
+            edge_list.append(cls._get_cytoscape_edge_dict(edge))
         
-        cat_tree_json_dict = {'nodes': node_list, 'edges': edge_list}
-        return json.dumps(cat_tree_json_dict, indent=2)
+        return json.dumps(node_list + edge_list, indent=2)
 
 class category_list(BasePage, GraphViewPage):
     @classmethod
@@ -1112,13 +1118,18 @@ class nodespace_overview(BasePage, GraphViewPage):
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
         return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.VIEW_NODESPACE_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
-    def render_page(self, ms_session):
+    def render_page_json(self, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, web.input().get('nodespace_id'))
         self.is_allowed_to_use(nodespace, user)
         
         overview_graph_info = tc.AdhocNeoQueries.get_nodespace_categories_and_writeups(NEODB, nodespace.nodespace_id)
         overview_graph_json = self.build_cat_tree_json(overview_graph_info)
+        return overview_graph_json
+    
+    def render_page_full_html(self, ms_session):
+        overview_graph_json = self.render_page_json(ms_session)
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         return self.wrap_content(RENDER.view_graph_template(overview_graph_json), user=user)
 
 class nga(BasePage):
