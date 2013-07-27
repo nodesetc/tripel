@@ -7,7 +7,9 @@ import pytz
 import web
 
 import config.parameters as params
-import config.messages as msg
+import config.messages as messages
+
+MSGS = messages.Messages
 
 
 class DateTimeUtil(object):
@@ -41,12 +43,6 @@ def get_websafe_dict_copy(original_dict):
         ret_val[key] = web.websafe(ret_val[key])
     return ret_val
 
-def msg_lookup(key, content_dict={}, locale=msg.Messages.DEFAULT_LOCALE, should_escape_content=False):
-    if should_escape_content:
-        content_dict = get_websafe_dict_copy(content_dict)
-    
-    return msg.Messages.lookup(key, content_dict, locale)
-
 def init_web_config_mail_params():
     web.config.smtp_server = params.SMTP_SERVER
     web.config.smtp_port = params.SMTP_PORT
@@ -61,15 +57,15 @@ def sendmail(from_addr, to_addr, subject, message, headers=None, **kw):
 def send_metaspace_invitation_email(ms_inv, ms_inv_link):
     from_addr = params.DEFAULT_FROM_ADDRESS
     to_addr = ms_inv.invitee_email_addr
-    subject = msg_lookup('ms_inv_email_subject')
-    message = msg_lookup('ms_inv_email_message',  {'inv_url': ms_inv_link, 'inv_msg': ms_inv.invitation_msg})
+    subject = MSGS.lookup('ms_inv_email_subject')
+    message = MSGS.lookup('ms_inv_email_message',  {'inv_url': ms_inv_link, 'inv_msg': ms_inv.invitation_msg})
     sendmail(from_addr, to_addr, subject, message)
 
 def send_nodespace_invitation_email(nodespace_name, ns_inv, ns_inv_link):
     from_addr = params.DEFAULT_FROM_ADDRESS
     to_addr = ns_inv.invitee_email_addr
-    subject = msg_lookup('ns_inv_email_subject', {'nodespace_name': nodespace_name})
-    message = msg_lookup('ns_inv_email_message', {'nodespace_name': nodespace_name, 'inv_url': ns_inv_link, 'inv_msg': ns_inv.invitation_msg})
+    subject = MSGS.lookup('ns_inv_email_subject', {'nodespace_name': nodespace_name})
+    message = MSGS.lookup('ns_inv_email_message', {'nodespace_name': nodespace_name, 'inv_url': ns_inv_link, 'inv_msg': ns_inv.invitation_msg})
     sendmail(from_addr, to_addr, subject, message)
 
 def a_elt(link_text=None, href_att_val=None, class_att_val=None, id_att_val=None):
