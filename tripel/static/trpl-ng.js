@@ -1,7 +1,12 @@
 var trplApp = angular.module('trpl', ['ngResource', 'ui.state', 'jm.i18next']);
 
 //TODO: should avoid also defining rootPath here, since it's already defined in python
-trplApp.value('trplConstants', {rootPath: '/tripel'});
+var tripelRootPath = '/tripel'
+var i18nOptions = {fallbackLng: 'en', resGetPath: tripelRootPath+'/get_locale_messages?locale=__lng__&modeselektion=json', dynamicLoad: true, debug: true}
+i18n.init(i18nOptions);
+//i18n.setDefaultNamespace('translation')
+
+trplApp.value('trplConstants', {rootPath: tripelRootPath});
 
 trplApp.config(
 	function($stateProvider, $routeProvider, $urlRouterProvider, $i18nextProvider) {
@@ -66,7 +71,7 @@ trplApp.config(
 		
 		$urlRouterProvider.otherwise('/app_view/nodespaces_accessible');
 		
-		$i18nextProvider.options = {resGetPath: 'resources.json?lng=__lng__&ns=__ns__', dynamicLoad: true};
+		//$i18nextProvider.options = i18nOptions;
 	}
 );
 
@@ -122,7 +127,7 @@ trplApp.service('paneListSvc',
 				//TODO: urlBase values should come from state info so we're not repeating the definition here
 				case 'app-views':
 					var urlBase = '#/app_view/';
-					var panes = [{title: 'metaspace commands', url: urlBase+'metaspace_cmds', isSelected: false, isUsable: false},
+					var panes = [{title: i18n.t('metaspace_command_list_smry'), url: urlBase+'metaspace_cmds', isSelected: false, isUsable: false},
 							{title: 'manage logged in user', url: urlBase+'manage_logged_in_user', isSelected: false, isUsable: true},
 							{title: 'accessible nodespaces', url: urlBase+'nodespaces_accessible', isSelected: false, isUsable: true}];
 					
