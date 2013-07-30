@@ -1,8 +1,8 @@
 class Messages(object):
-    DEFAULT_LOCALE = 'en'
+    DEFAULT_LOCALE = 'en-US'
     
     TRANSLATION_LOCALES = {
-        'en': {
+        'en-US': {
             'translation': {
                 'instance_name': 'de brouwerij',
                 
