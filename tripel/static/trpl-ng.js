@@ -2,7 +2,7 @@ var trplApp = angular.module('trpl', ['ngResource', 'ui.state', 'jm.i18next']);
 
 //TODO: should avoid also defining rootPath here, since it's already defined in python
 var tripelRootPath = '/tripel'
-var i18nOptions = {fallbackLng: 'en', resStore: window.trplLocaleMsgs, dynamicLoad: false}
+var i18nOptions = {fallbackLng: 'en-US', resStore: window.trplLocaleMsgs, dynamicLoad: false}
 i18n.init(i18nOptions);
 
 trplApp.value('trplConstants', {rootPath: tripelRootPath});
@@ -69,8 +69,6 @@ trplApp.config(
 				});
 		
 		$urlRouterProvider.otherwise('/app_view/nodespaces_accessible');
-		
-		//$i18nextProvider.options = i18nOptions;
 	}
 );
 
@@ -118,7 +116,6 @@ trplApp.service('trplBackendSvc',
 	}
 );
 
-//TODO: you're going to regret putting off localization...
 trplApp.service('paneListSvc', 
 	function(trplBackendSvc) {
 		this.getPaneList = function(paneListType) {
@@ -127,8 +124,8 @@ trplApp.service('paneListSvc',
 				case 'app-views':
 					var urlBase = '#/app_view/';
 					var panes = [{title: i18n.t('metaspace_command_list_smry'), url: urlBase+'metaspace_cmds', isSelected: false, isUsable: false},
-							{title: 'manage logged in user', url: urlBase+'manage_logged_in_user', isSelected: false, isUsable: true},
-							{title: 'accessible nodespaces', url: urlBase+'nodespaces_accessible', isSelected: false, isUsable: true}];
+							{title: i18n.t('manage_logged_in_user_tab_name'), url: urlBase+'manage_logged_in_user', isSelected: false, isUsable: true},
+							{title: i18n.t('accessible_nodespaces_tab_name'), url: urlBase+'nodespaces_accessible', isSelected: false, isUsable: true}];
 					
 					var callbackFn = function(isAllowedToUseMetaspaceCmds) {
 						panes[0].isUsable = isAllowedToUseMetaspaceCmds;
@@ -140,17 +137,17 @@ trplApp.service('paneListSvc',
 					
 				case 'metaspace-commands':
 					var urlBase = '#/app_view/metaspace_cmds/';
-					var panes = [{title: 'create new nodespace', url: urlBase+'nodespace_create', isSelected: false, isUsable: true},
-							{title: 'invite new user', url: urlBase+'user_invitation_create', isSelected: false, isUsable: true},
-							{title: 'list all nodespaces', url: urlBase+'nodespaces_all', isSelected: false, isUsable: true},
-							{title: 'list all users', url: urlBase+'users', isSelected: false, isUsable: true}];
+					var panes = [{title: i18n.t('nodespace_create_form_page_name'), url: urlBase+'nodespace_create', isSelected: false, isUsable: true},
+							{title: i18n.t('user_invite_create_form_page_name'), url: urlBase+'user_invitation_create', isSelected: false, isUsable: true},
+							{title: i18n.t('nodespace_list_all_page_name'), url: urlBase+'nodespaces_all', isSelected: false, isUsable: true},
+							{title: i18n.t('user_list_all_page_name'), url: urlBase+'users', isSelected: false, isUsable: true}];
 					
 					return panes
 				
 				case 'manage-user':
 					var urlBase = '#/app_view/manage_logged_in_user/';
-					var panes = [{title: 'edit user info', url: urlBase+'user_info_edit', isSelected: false, isUsable: true},
-							{title: 'change password', url: urlBase+'user_change_password', isSelected: false, isUsable: true}];
+					var panes = [{title: i18n.t('user_info_edit_form_page_name'), url: urlBase+'user_info_edit', isSelected: false, isUsable: true},
+							{title: i18n.t('user_change_pass_form_page_name'), url: urlBase+'user_change_password', isSelected: false, isUsable: true}];
 					
 					return panes
 					

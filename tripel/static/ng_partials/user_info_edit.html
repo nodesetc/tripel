@@ -1,22 +1,22 @@
 <!--TODO: show name of user being edited -->
 <form name="user_info_edit_form" id="user_info_edit_form" class="form-inline">
     <label>
-        email address<br>
+        <span ng-i18next="email_addr_label"></span><br>
         <input type="text" name="email_addr"/>
     </label>
     <br><br>
     
     <label>
-        username<br>
+        <span ng-i18next="username_label"></span><br>
         <input type="text" name="username"/>
     </label>
     <br><br>
     
     <label>
-        user statement<br>
+        <span ng-i18next="user_statement_blurb"></span><br>
         <textarea name="user_statement"></textarea>
     </label>
     <br><br>
     
-    <button name="update user info" class="btn btn-inverse btn-small">update user info</button>
+    <button name="update user info" class="btn btn-inverse btn-small"><span ng-i18next="user_info_edit_submit_btn"></span></button>
 </form>

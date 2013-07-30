@@ -22,12 +22,13 @@ class Messages(object):
                 'user_info_edit_form_page_name': 'edit user info',
                 'user_change_pass_form_page_name': 'change password',
                 'nodespace_list_accessible_page_name': 'accessible nodespaces for user',
-                'nodespace_list_all_page_name': 'all nodespaces',
+                'nodespace_list_all_page_name': 'list all nodespaces',
                 'user_list_nodespace_page_name': 'list nodespace users',
                 'user_list_all_page_name': 'list all users',
                 'metaspace_access_edit_form_page_name': 'edit metaspace access',
                 'nodespace_access_edit_form_page_name': 'edit nodespace access',
                 'metaspace_command_list_page_name': 'metaspace commands',
+                'manage_logged_in_user_tab_name': 'manage logged in user',
                 
                 'username_col_hdr': 'username',
                 'nodespace_privileges_col_hdr': 'nodespace privileges',
@@ -159,6 +160,7 @@ class Messages(object):
                 'logout_link_disp_txt': 'logout',
                 
                 'accessible_nodespaces_link_disp_txt': 'nodespaces for %(username)s',
+                'accessible_nodespaces_tab_name': 'accessible nodespaces',
                 
                 'edit_other_usr_link_disp_txt': 'edit user info for %(username)s',
                 'edit_other_usr_privs_link_disp_txt': 'alter metaspace privileges for %(username)s',

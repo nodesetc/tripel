@@ -77,10 +77,14 @@ def get_session_from_cookie(pgdb):
         return None
 
 
-#TODO: you should either start referring to things like ms_session as instance vars (via self.) instead of passing 
-# them around, or you should make everything into classmethods.  either way, things that don't actually avail themselves
-# of the instantiated-ness of instance methods should be turned into classmethods.
-# see also:  https://groups.google.com/forum/#!topic/webpy/n93iZmrTFlU
+# note that BasePage and its subclasses are comprised entirely of classmethods.  currently, web.py 
+# creates a new instance of the appropriate class for each request it handles, but according to a 
+# thread on the web.py google group "this behavior should be considered an internal implementation 
+# detail of web.py and might change in the future."  as my use of instance variables was already 
+# very limited in this module, i just got rid of that entirely.  eventually the few methods that were
+# made kludgey because of this should get removed anyway (since they implement UI code that's getting
+# superseded by angular).
+#  see also:  https://groups.google.com/d/topic/webpy/n93iZmrTFlU/discussion
 class BasePage(object):
     CAN_GET_PAGE = True
     CAN_POST_PAGE = True

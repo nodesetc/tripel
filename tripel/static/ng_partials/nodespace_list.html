@@ -1,6 +1,6 @@
 <div class="tab-pane active">
     <table class="table-bordered table-condensed">
-        <tr><th>nodespace</th><th>description</th></tr>
+        <tr><th><span ng-i18next="nodespace_name_col_hdr"></span></th><th><span ng-i18next="nodespace_description_col_hdr"></span></th></tr>
         <tbody>
             <tr ng-repeat="nodespace in nodespaceListData.nodespaceList">
                 <td><a href="{{urlBase + nodespace.nodespace_id}}">{{nodespace.nodespace_name}}</a> &nbsp;</td>
