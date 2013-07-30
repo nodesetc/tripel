@@ -1216,14 +1216,24 @@ class nga(BasePage):
         return cls.render_angular_app(user=user)
 
 class get_locale_messages(BasePage):
+    JSON_ASSIGNED_MODE = 'json_assigned'
+    
+    @classmethod
+    def get_page_render_fn(cls, page_mode):
+        if page_mode == cls.JSON_ASSIGNED_MODE:
+            return cls.render_page_json_assigned
+        
+        return super(cls, cls).get_page_render_fn(page_mode)
+        
     @classmethod
     def render_page_json(cls, ms_session):
-        msgs_dict = MSGS.get_locale_messages_dict(web.input().get('locale'))
+        msgs_dict = MSGS.TRANSLATION_LOCALES
         return json.dumps(msgs_dict, indent=2)
     
     @classmethod
-    def render_page_js_fn(cls, ms_session, fn_name):
-        return "%s = %s" % (fn_name, cls.render_page_json(ms_session))
+    def render_page_json_assigned(cls, ms_session):
+        js_var_name = web.input().get('js_var_name');
+        return "%s = %s;" % (js_var_name, cls.render_page_json(ms_session))
 
 
 

@@ -2,9 +2,8 @@ var trplApp = angular.module('trpl', ['ngResource', 'ui.state', 'jm.i18next']);
 
 //TODO: should avoid also defining rootPath here, since it's already defined in python
 var tripelRootPath = '/tripel'
-var i18nOptions = {fallbackLng: 'en', resGetPath: tripelRootPath+'/get_locale_messages?locale=__lng__&modeselektion=json', dynamicLoad: true, debug: true}
+var i18nOptions = {fallbackLng: 'en', resStore: window.trplLocaleMsgs, dynamicLoad: false}
 i18n.init(i18nOptions);
-//i18n.setDefaultNamespace('translation')
 
 trplApp.value('trplConstants', {rootPath: tripelRootPath});
 
