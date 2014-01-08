@@ -281,7 +281,7 @@ class login_form(BasePage):
     
     LOGIN_FORM = web.form.Form(
                     web.form.Textbox(name='login_username', description=MSGS.lookup('username_label')),
-                    web.form.Password(name='login_password', description=MSGS.lookup('password_label')),
+                    web.form.Password(name='login_password', description=MSGS.lookup('login_password_label')),
                     web.form.Button(name=MSGS.lookup('login_submit_btn')))
     
     @classmethod
@@ -332,12 +332,23 @@ class auth_status(BasePage, ListTablePage):
     REQUIRES_VALID_SESSION = False
     
     @classmethod
-    def render_page(cls, ms_session):
+    def render_page_full_html(cls, ms_session):
         has_valid_session = (ms_session is not None) and ms_session.is_session_valid()
         output_html = MSGS.lookup('auth_status_text', {'has_valid_session': has_valid_session})
         if ms_session is not None:
             output_html = '<p>%s</p><p>%s</p>' % (output_html, cls.basic_table_content([ms_session]))
         return cls.wrap_content(output_html, ms_session=ms_session)
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        has_valid_session = (ms_session is not None) and ms_session.is_session_valid()
+        session_dict = {'has_valid_session': has_valid_session}
+        
+        if has_valid_session:
+            for col_key in cls._get_col_keys([ms_session]):
+                session_dict[col_key] = str(getattr(ms_session, col_key))
+        
+        return json.dumps(session_dict, indent=2)
 
 class NodespaceForm(object):
     @classmethod
@@ -433,24 +444,37 @@ class nodespace_view(BasePage, ListTablePage):
         return ['nodespace_name', 'nodespace_description', 'creator', 'creation_date', 'modifier', 'modification_date']
     
     @classmethod
-    def _get_command_links(cls, user, extra_display_info):
+    def _get_command_perms(cls, user, nodespace):
+        perm_dict = {'is_allowed_to_edit_nodespace': False, 
+                    'is_allowed_to_list_nodespace_users': False, 
+                    'is_allowed_to_invite_nodespace_users': False}
+        
         if user is None:
-            return None
+            return perm_dict
         
+        perm_dict['is_allowed_to_edit_nodespace'] = nodespace_edit_form.is_allowed_to_use(nodespace, user, False)
+        perm_dict['is_allowed_to_list_nodespace_users'] = user_list_nodespace.is_allowed_to_use(nodespace, user, False)
+        perm_dict['is_allowed_to_invite_nodespace_users'] = nodespace_invite_create_form.is_allowed_to_use(nodespace, user, False)
+        
+        return perm_dict
+    
+    @classmethod
+    def _get_command_links(cls, user, extra_display_info):
         ret_val = []
-        
         nodespace = extra_display_info['nodespace']
-        if nodespace_edit_form.is_allowed_to_use(nodespace, user, False):
+        command_perms = cls._get_command_perms(user, nodespace)
+        
+        if command_perms['is_allowed_to_edit_nodespace']:
             ns_edit_url = nodespace_edit_form.build_page_url(query_params={'nodespace_id': nodespace.nodespace_id})
             ns_edit_disp_txt = MSGS.lookup('edit_nodespace_link_disp_txt', {'nodespace_name': nodespace.nodespace_name})
             ret_val.append({'url': ns_edit_url, 'display_text': ns_edit_disp_txt})
         
-        if user_list_nodespace.is_allowed_to_use(nodespace, user, False):
+        if command_perms['is_allowed_to_list_nodespace_users']:
             user_list_ns_url = user_list_nodespace.build_page_url(query_params={'nodespace_id': nodespace.nodespace_id})
             user_list_ns_disp_txt = MSGS.lookup('nodespace_user_list_link_disp_txt', {'nodespace_name': nodespace.nodespace_name})
             ret_val.append({'url': user_list_ns_url, 'display_text': user_list_ns_disp_txt})
         
-        if nodespace_invite_create_form.is_allowed_to_use(nodespace, user, False):
+        if command_perms['is_allowed_to_invite_nodespace_users']:
             ns_inv_url = nodespace_invite_create_form.build_page_url(query_params={'nodespace_id': nodespace.nodespace_id})
             ns_inv_disp_txt = MSGS.lookup('nodespace_inv_link_disp_txt', {'nodespace_name': nodespace.nodespace_name})
             ret_val.append({'url': ns_inv_url, 'display_text': ns_inv_disp_txt})
@@ -458,11 +482,18 @@ class nodespace_view(BasePage, ListTablePage):
         return ret_val
     
     @classmethod
-    def render_page(cls, ms_session):
+    def render_page_full_html(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         nodespace_id = web.input().get('nodespace_id')
         nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, nodespace_id)
         return cls.wrap_content(cls.basic_table_content([nodespace]), user=user, extra_display_info={'nodespace': nodespace})
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        nodespace_id = web.input().get('nodespace_id')
+        nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, nodespace_id)
+        return json.dumps(cls._get_command_perms(user, nodespace), indent=2)
 
 class user_invite_create_form(BasePage):
     @classmethod
@@ -641,7 +672,7 @@ class nodespace_invite_create(BasePage):
             status_message = MSGS.lookup('inv_create_success', {'inv_url': ns_inv_link})
         else:
             status_message = MSGS.lookup('inv_create_failure')
-            
+        
         return cls.wrap_content(status_message, user=user)
 
 class nodespace_invite_decide_form(BasePage, InviteDecideForm):
@@ -733,7 +764,7 @@ class nodespace_access_view(BasePage, ListTablePage):
 class user_view(BasePage, ListTablePage):
     @classmethod
     def _get_col_keys(cls, table_data):
-        return ['username', 'email_addr', 'user_statement', 'metaspace_privileges', 'is_enabled', 'creator', 'creation_date', 'modifier', 'modification_date']
+        return ['user_id', 'username', 'email_addr', 'user_statement', 'metaspace_privileges', 'is_enabled', 'creator', 'creation_date', 'modifier', 'modification_date']
     
     @classmethod
     def _get_content_summary(cls, user, extra_display_info):
@@ -778,13 +809,21 @@ class user_view(BasePage, ListTablePage):
         return [col_keys, col_keys, table_data]
     
     @classmethod
-    def render_page(cls, ms_session):
+    def render_page_full_html(cls, ms_session):
         viewing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         viewed_user = tc.User.get_existing_user_by_id(PGDB, web.input().get('viewed_user_id'))
-        
         cls.is_allowed_to_use(viewed_user, viewing_user)
-        
         return cls.wrap_content(cls.basic_table_content([viewed_user]), user=viewing_user, extra_display_info={'viewed_user': viewed_user})
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        viewing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        viewed_user = tc.User.get_existing_user_by_id(PGDB, web.input().get('viewed_user_id'))
+        cls.is_allowed_to_use(viewed_user, viewing_user)
+        viewed_user_dict = {}
+        for col_key in cls._get_col_keys(None):
+            viewed_user_dict[col_key] = str(getattr(viewed_user, col_key))
+        return json.dumps(viewed_user_dict, indent=2)
 
 class user_info_edit_form(BasePage):
     USER_INFO_EDIT_FORM = web.form.Form(
@@ -824,7 +863,7 @@ class user_info_edit(BasePage):
         return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.ALTER_USER_INFO_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
-    def render_page(cls, ms_session):
+    def render_page_full_html(cls, ms_session):
         editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         edited_user = tc.User.get_existing_user_by_id(PGDB, int(web.input().get('edited_user_id')))
         cls.is_allowed_to_use(edited_user, editing_user)
@@ -832,10 +871,24 @@ class user_info_edit(BasePage):
         edited_user.set_and_save_user_info(PGDB, web.input().get('username'), web.input().get('email_addr'), web.input().get('user_statement'), editing_user.user_id)
         
         web.found(user_view.build_page_url(query_params={'viewed_user_id': edited_user.user_id}))
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        edited_user = tc.User.get_existing_user_by_id(PGDB, int(web.input().get('edited_user_id')))
+        cls.is_allowed_to_use(edited_user, editing_user)
+        
+        encountered_update_error = False
+        try:
+            edited_user.set_and_save_user_info(PGDB, web.input().get('username'), web.input().get('email_addr'), web.input().get('user_statement'), editing_user.user_id)
+        except:
+            encountered_update_error = True
+        
+        json.dumps({'encountered_update_error': encountered_update_error}, indent=2)
 
 class user_change_pass_form(BasePage):
     USER_CHANGE_PASS_FORM = web.form.Form(
-                            web.form.Password('editing_user_cleartext_password', description=MSGS.lookup('password_label')),
+                            web.form.Password('editing_user_cleartext_password', description=MSGS.lookup('confirm_password_label')),
                             web.form.Password('cleartext_password_1', description=MSGS.lookup('new_password_label')),
                             web.form.Password('cleartext_password_2', description=MSGS.lookup('reenter_password_label')),
                             web.form.Button(name=MSGS.lookup('user_change_password_submit_btn')))
@@ -871,23 +924,41 @@ class user_change_pass(BasePage):
         return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.ALTER_USER_INFO_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
-    def render_page(cls, ms_session):
+    def _render_page_helper(cls, ms_session):
         editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         edited_user = tc.User.get_existing_user_by_id(PGDB, int(web.input().get('edited_user_id')))
         
         cls.is_allowed_to_use(edited_user, editing_user)
         
-        if not editing_user.check_password_audited(PGDB, web.input().get('editing_user_cleartext_password')):
-            return cls.wrap_content(MSGS.lookup('password_check_failed'), user=editing_user)
-        
+        editing_user_current_password = web.input().get('editing_user_cleartext_password')
         cleartext_password_1 = web.input().get('cleartext_password_1')
         cleartext_password_2 = web.input().get('cleartext_password_2')
-        if cleartext_password_1 != cleartext_password_2:
-            return cls.wrap_content(MSGS.lookup('password_mismatch_error'), user=editing_user)
         
-        edited_user.set_and_save_encrypted_password(PGDB, cleartext_password_1, editing_user.user_id)
+        ret_val = {'encountered_update_error': False}
         
-        web.found(user_view.build_page_url(query_params={'viewed_user_id': edited_user.user_id}))
+        if not editing_user.check_password_audited(PGDB, editing_user_current_password):
+            ret_val['encountered_update_error'] = True
+            ret_val['error_msg'] = MSGS.lookup('password_check_failed')
+        elif cleartext_password_1 != cleartext_password_2:
+            ret_val['encountered_update_error'] = True
+            ret_val['error_msg'] = MSGS.lookup('password_mismatch_error')
+        else:
+            edited_user.set_and_save_encrypted_password(PGDB, cleartext_password_1, editing_user.user_id)
+        
+        return (ret_val, editing_user, edited_user)
+    
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        change_pass_result, editing_user, edited_user = cls._render_page_helper(ms_session)
+        if change_pass_result['encountered_update_error'] == False:
+            web.found(user_view.build_page_url(query_params={'viewed_user_id': edited_user.user_id}))
+        else:
+            return cls.wrap_content(change_pass_result['error_msg'], user=editing_user)
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        change_pass_result, editing_user, edited_user = cls._render_page_helper(ms_session)
+        return json.dumps(change_pass_result)
 
 class NodespaceList(BasePage, ListTablePage):
     @classmethod
@@ -996,13 +1067,25 @@ class user_list_all(BasePage, ListTablePage):
         return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.LIST_ALL_USERS_ACTION, None, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
-    def render_page(cls, ms_session):
-        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
-        cls.is_allowed_to_use(None, user)
+    def _get_user_list(cls, viewing_user):
+        cls.is_allowed_to_use(None, viewing_user)
+        return tc.User.get_all_users(PGDB)
         
-        user_list = tc.User.get_all_users(PGDB)
-        
-        return cls.wrap_content(cls.basic_table_content(user_list), user=user)
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        viewing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        user_list = cls._get_user_list(viewing_user)
+        return cls.wrap_content(cls.basic_table_content(user_list), user=viewing_user)
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        viewing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        users = cls._get_user_list(viewing_user)
+        user_dict_list = [{'user_id': user.user_id, 'username': user.username, 'email_addr': user.email_addr, 
+                            'user_statement': user.user_statement, 'metaspace_privileges': str(user.metaspace_privileges),
+                            'is_enabled': user.is_enabled, 'creator': user.creator, 'creation_date': str(user.creation_date),
+                            'modifier': user.modifier, 'modification_date': str(user.modification_date)} for user in users]
+        return json.dumps(user_dict_list, indent=2)
 
 class metaspace_access_edit_form(BasePage):
     @classmethod
