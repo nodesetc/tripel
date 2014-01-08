@@ -1,17 +1,29 @@
+<!-- TODO: convert the line breaks to unix format -->
 <div class="tab-pane active">
     <table class="table-bordered table-condensed">
-        <tr><th>username</th><th>email address</th><th>user statement</th><th>metaspace privileges</th><th>enabled?</th><th>created by</th><th>created on</th><th>last modified by</th><th>last modified on</th></tr>
+        <tr>
+            <th><span ng-i18next>username_col_hdr</span></th>
+            <th><span ng-i18next>email_addr_label</span></th>
+            <th><span ng-i18next>user_statement_col_hdr</span></th>
+            <th><span ng-i18next>metaspace_privileges_col_hdr</span></th>
+            <th><span ng-i18next>is_enabled_col_hdr</span></th>
+            <th><span ng-i18next>creator_col_hdr</span></th>
+            <th><span ng-i18next>creation_date_col_hdr</span></th>
+            <th><span ng-i18next>modifier_col_hdr</span></th>
+            <th><span ng-i18next>modification_date_col_hdr</span></th>
+        </tr>
+        
         <tbody>
             <tr ng-repeat="user in userListData.userList">
-                <td><a href="{{urlBase + user.user_id}}">{{user.user_name}}</a> &nbsp;</td>
-                <td>{{user.email_address}} &nbsp;</td>
-                <td> &nbsp;</td>
-                <td> &nbsp;</td>
-                <td> &nbsp;</td>
-                <td> &nbsp;</td>
-                <td> &nbsp;</td>
-                <td> &nbsp;</td>
-                <td> &nbsp;</td>
+                <td><a href="{{urlBase + user.user_id}}">{{user.username}}</a>&nbsp;</td>
+                <td>{{user.email_addr}}&nbsp;</td>
+                <td>{{user.user_statement}}&nbsp;</td>
+                <td>{{user.metaspace_privileges}}&nbsp;</td>
+                <td>{{user.is_enabled}}&nbsp;</td>
+                <td>{{user.creator}}&nbsp;</td>
+                <td>{{user.creation_date}}&nbsp;</td>
+                <td>{{user.modifier}}&nbsp;</td>
+                <td>{{user.modification_date}}&nbsp;</td>
             </tr>
         </tbody>
     </table>
