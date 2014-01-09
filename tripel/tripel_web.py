@@ -214,6 +214,7 @@ class BasePage(object):
         elif page_mode == cls.CHECK_IS_ALLOWED_TO_USE_MODE:
             return cls.render_page_is_allowed_to_use
         elif page_mode == cls.JSON_MODE:
+            #TODO: would be good to set the headers to say json's being returned, right?
             return cls.render_page_json
         elif page_mode == cls.NO_WRAPPER_HTML_MODE:
             return cls.render_page_no_wrapper_html
@@ -378,20 +379,36 @@ class nodespace_create(BasePage):
         return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.CREATE_SPACE_ACTION, None, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
-    def render_page(cls, ms_session):
+    def _render_page_helper(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         cls.is_allowed_to_use(None, user)
         
         nodespace_name = web.input().get('nodespace_name')
         nodespace_description = web.input().get('nodespace_description')
         new_nodespace = None
+        #TODO: wrap in transaction?
         if tc.Nodespace.is_valid_nodespace_name(nodespace_name) and tc.Nodespace.get_existing_nodespace(PGDB, nodespace_name) is None:
             new_nodespace = tc.Nodespace.create_new_nodespace(DB_TUPLE, nodespace_name, nodespace_description, user.user_id)
+        
+        return new_nodespace
+    
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        new_nodespace = cls._render_page_helper(ms_session)
         
         if new_nodespace is not None:
             web.found(nodespace_view.build_page_url(query_params={'nodespace_id': new_nodespace.nodespace_id}))
         else:
             web.found(nodespace_create_form.build_page_url(web.input()))
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        new_nodespace = cls._render_page_helper(ms_session)
+        
+        if new_nodespace is not None:
+            return json.dumps({'encountered_create_error': False, 'nodespace_id': new_nodespace.nodespace_id}, 2)
+        else:
+            return json.dumps({'encountered_create_error': True}, 2)
 
 class nodespace_edit_form(BasePage, NodespaceForm):
     @classmethod
@@ -884,7 +901,7 @@ class user_info_edit(BasePage):
         except:
             encountered_update_error = True
         
-        json.dumps({'encountered_update_error': encountered_update_error}, indent=2)
+        return json.dumps({'encountered_update_error': encountered_update_error}, indent=2)
 
 class user_change_pass_form(BasePage):
     USER_CHANGE_PASS_FORM = web.form.Form(
@@ -1297,6 +1314,12 @@ class nodespace_overview(BasePage, GraphViewPage):
         return cls.wrap_content(RENDER.view_graph_template(overview_graph_json), user=user)
 
 class nga(BasePage):
+    @classmethod
+    def _get_header_links(cls, user, extra_display_info):
+        if user is None:
+            return None
+        return [{'url': logout.build_page_url(), 'display_text': MSGS.lookup('logout_link_disp_txt')}]
+    
     @classmethod
     def render_page(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
