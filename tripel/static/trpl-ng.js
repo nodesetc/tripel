@@ -22,6 +22,7 @@ trplApp.config(
 				})
 			.state('appView.metaspaceCmds.nodespaceCreate', {
 					url: '/nodespace_create',
+					controller: 'CreateNodespaceCtrl',
 					templateUrl: 'static/ng_partials/nodespace_edit.html'
 				})
 			.state('appView.metaspaceCmds.userInvitationCreate', {
@@ -187,6 +188,10 @@ trplApp.service('trplBackendSvc',
 		
 		this.updateUserPassword = function(callbackFn, pwUpdData) {
 			return this.postReq(callbackFn, '/user_change_pass', pwUpdData);
+		};
+		
+		this.createNodespace = function(callbackFn, nodespaceData) {
+			return this.postReq(callbackFn, '/nodespace_create', nodespaceData);
 		};
 	}
 );
@@ -394,6 +399,28 @@ trplApp.controller('ChangePasswordCtrl',
 			trplBackendSvc.updateUserPassword(passwordUpdateCallbackFn, pwUpdData);
 		};
 		$scope.submitPasswordChangeForm = submitPasswordChangeForm;
+	}
+);
+
+trplApp.controller('CreateNodespaceCtrl',
+	function($scope, trplBackendSvc) {
+		var nodespaceInfo = $scope.nodespaceInfo = {};
+		var updateStatus = $scope.updateStatus = {'encounteredUpdateError': null};
+		var createStatus = $scope.createStatus = {'encounteredCreateError': null};
+		
+		var nodespaceCreateCallbackFn = function(createResult) {
+			if (createResult == null) {
+				createStatus.encounteredCreateError = true;
+			} else {
+				createStatus.encounteredCreateError = Boolean(createResult.encountered_create_error);
+			}
+		};
+		
+		var submitNodespaceCreateForm = function() {
+			var nsCreateData = {'nodespace_name': nodespaceInfo.nodespace_name, 'nodespace_description': nodespaceInfo.nodespace_description};
+			trplBackendSvc.createNodespace(nodespaceCreateCallbackFn, nsCreateData);
+		};
+		$scope.submitForm = submitNodespaceCreateForm;
 	}
 );
 
