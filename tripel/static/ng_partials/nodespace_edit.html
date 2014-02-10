@@ -9,10 +9,10 @@
 
 <div ng-show="createStatus.encounteredCreateError != null">
     <div class="alert alert-error" ng-show="createStatus.encounteredCreateError == true">
-        <span ng-i18next="nodespace_info_edit_error_msg"></span>
+        <span ng-i18next="nodespace_create_error_msg"></span>
     </div>
     <div class="alert alert-success" ng-show="createStatus.encounteredCreateError == false">
-        <span ng-i18next="nodespace_info_edit_success_msg"></span>
+        <span ng-i18next="nodespace_create_success_msg"></span>
     </div>
 </div>
 
@@ -29,5 +29,5 @@
     </label>
     <br><br>
     
-    <button class="btn btn-inverse btn-small"><span ng-i18next="create_ns_submit_btn"></button>
+    <button class="btn btn-inverse btn-small"><span ng-i18next="{{submitBtnContentKey}}"></button>
 </form>

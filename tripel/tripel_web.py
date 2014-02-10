@@ -33,31 +33,17 @@ MSGS = messages.Messages
 util.init_web_config_mail_params()
 
 
+def empty_str_to_none(str):
+    if str is not None and len(str) == 0:
+        return None
+    else:
+        return str
+
 def build_url_path(subpath):
     return util.build_url_path(params.APP_DEPLOYMENT_PATH, subpath)
 
 def build_url(path):
     return util.build_url(params.SERVER_HOSTNAME, path)
-
-
-def privilege_select_elts(field_name, grantable_privileges, selected_privileges=tc.PrivilegeSet()):
-    priv_entries = []
-    for priv in grantable_privileges:
-        priv_title = MSGS.lookup('%s_priv_title' % priv)
-        priv_desc = MSGS.lookup('%s_priv_desc' % priv)
-        priv_checkbox = web.form.Checkbox(field_name, value=priv, description='%s: %s' % (priv_title, priv_desc), checked=(selected_privileges.has_privilege(priv)))
-        priv_entries.append(priv_checkbox)
-    
-    return priv_entries
-
-def metaspace_privilege_select_elts(field_name='metaspace_privileges', grantable_privileges=None, selected_privileges=tc.MetaspacePrivilegeSet()):
-    cmp = tc.MetaspacePrivilegeSet.comparator
-    return privilege_select_elts(field_name, sorted(grantable_privileges, cmp), selected_privileges)
-
-def nodespace_privilege_select_elts(field_name='nodespace_privileges', grantable_privileges=None, selected_privileges=tc.NodespacePrivilegeSet()):
-    cmp = tc.NodespacePrivilegeSet.comparator
-    return privilege_select_elts(field_name, sorted(grantable_privileges, cmp), selected_privileges)
-
 
 def kill_session_and_cookie(pgdb, ms_session):
     if ms_session is not None:
@@ -379,6 +365,12 @@ class nodespace_create(BasePage):
         return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.CREATE_SPACE_ACTION, None, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
+    def render_page_is_allowed_to_use(cls, ms_session):
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        ret_val = {'is_allowed_to_use': cls.is_allowed_to_use(None, user, should_raise_insufficient_priv_ex=False)}
+        return json.dumps(ret_val)
+    
+    @classmethod
     def _render_page_helper(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         cls.is_allowed_to_use(None, user)
@@ -437,19 +429,37 @@ class nodespace_edit(BasePage):
         return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.ALTER_NODESPACE_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
-    def render_page(cls, ms_session):
+    def _render_page_helper(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, web.input().get('nodespace_id'))
         
         cls.is_allowed_to_use(nodespace, user)
         
-        nodespace_name = web.input().get('nodespace_name')
-        nodespace_description = web.input().get('nodespace_description')
-        nodespace.set_and_save_nodespace_settings(PGDB, nodespace_name, nodespace_description, user.user_id)
+        try:
+            nodespace_name = web.input().get('nodespace_name')
+            nodespace_description = web.input().get('nodespace_description')
+            nodespace.set_and_save_nodespace_settings(PGDB, nodespace_name, nodespace_description, user.user_id)
+        except:
+            nodespace = None
         
+        return nodespace
+    
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        nodespace = cls._render_page_helper(ms_session)
         web.found(nodespace_view.build_page_url(query_params={'nodespace_id':nodespace.nodespace_id}))
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        nodespace = cls._render_page_helper(ms_session)
+        encountered_update_error = False if nodespace is not None else True
+        return json.dumps({'encountered_update_error': encountered_update_error})
 
 class nodespace_view(BasePage, ListTablePage):
+    @classmethod
+    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
+        return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.VIEW_NODESPACE_ACTION, target, actor, should_raise_insufficient_priv_ex)
+    
     @classmethod
     def _get_content_summary(cls, user, extra_display_info):
         if user is None:
@@ -471,7 +481,7 @@ class nodespace_view(BasePage, ListTablePage):
         
         perm_dict['is_allowed_to_edit_nodespace'] = nodespace_edit_form.is_allowed_to_use(nodespace, user, False)
         perm_dict['is_allowed_to_list_nodespace_users'] = user_list_nodespace.is_allowed_to_use(nodespace, user, False)
-        perm_dict['is_allowed_to_invite_nodespace_users'] = nodespace_invite_create_form.is_allowed_to_use(nodespace, user, False)
+        perm_dict['is_allowed_to_invite_nodespace_users'] = nodespace_invitation_create_form.is_allowed_to_use(nodespace, user, False)
         
         return perm_dict
     
@@ -492,7 +502,7 @@ class nodespace_view(BasePage, ListTablePage):
             ret_val.append({'url': user_list_ns_url, 'display_text': user_list_ns_disp_txt})
         
         if command_perms['is_allowed_to_invite_nodespace_users']:
-            ns_inv_url = nodespace_invite_create_form.build_page_url(query_params={'nodespace_id': nodespace.nodespace_id})
+            ns_inv_url = nodespace_invitation_create_form.build_page_url(query_params={'nodespace_id': nodespace.nodespace_id})
             ns_inv_disp_txt = MSGS.lookup('nodespace_inv_link_disp_txt', {'nodespace_name': nodespace.nodespace_name})
             ret_val.append({'url': ns_inv_url, 'display_text': ns_inv_disp_txt})
         
@@ -503,6 +513,7 @@ class nodespace_view(BasePage, ListTablePage):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         nodespace_id = web.input().get('nodespace_id')
         nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, nodespace_id)
+        cls.is_allowed_to_use(nodespace, user)
         return cls.wrap_content(cls.basic_table_content([nodespace]), user=user, extra_display_info={'nodespace': nodespace})
     
     @classmethod
@@ -510,54 +521,115 @@ class nodespace_view(BasePage, ListTablePage):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         nodespace_id = web.input().get('nodespace_id')
         nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, nodespace_id)
-        return json.dumps(cls._get_command_perms(user, nodespace), indent=2)
+        cls.is_allowed_to_use(nodespace, user)
+        
+        perms_for_user = cls._get_command_perms(user, nodespace)
+        nodespace_info = {}
+        for field_name in ['nodespace_name', 'nodespace_description', 'creator', 'creation_date', 'modifier', 'modification_date']:
+            nodespace_info[field_name] = str(getattr(nodespace, field_name))
+        ret_val = {'perms_for_user': perms_for_user, 'nodespace_info': nodespace_info}
+        
+        return json.dumps(ret_val, indent=2)
 
-class user_invite_create_form(BasePage):
+class PrivilegesEditForm(object):
+    @classmethod
+    def privilege_select_elts(cls, field_name, grantable_privileges, selected_privileges=tc.PrivilegeSet()):
+        priv_entries = []
+        for priv in grantable_privileges:
+            priv_title = MSGS.lookup('%s_priv_title' % priv)
+            priv_desc = MSGS.lookup('%s_priv_desc' % priv)
+            priv_checkbox = web.form.Checkbox(field_name, value=priv, description='%s: %s' % (priv_title, priv_desc), checked=(selected_privileges.has_privilege(priv)))
+            priv_entries.append(priv_checkbox)
+        
+        return priv_entries
+    
+    @classmethod
+    def metaspace_privilege_select_elts(cls, field_name='metaspace_privileges', grantable_privileges=None, selected_privileges=tc.MetaspacePrivilegeSet()):
+        comparator = tc.MetaspacePrivilegeSet.comparator
+        return cls.privilege_select_elts(field_name, sorted(grantable_privileges, comparator), selected_privileges)
+    
+    @classmethod
+    def nodespace_privilege_select_elts(cls, field_name='nodespace_privileges', grantable_privileges=None, selected_privileges=tc.NodespacePrivilegeSet()):
+        comparator = tc.NodespacePrivilegeSet.comparator
+        return cls.privilege_select_elts(field_name, sorted(grantable_privileges, comparator), selected_privileges)
+
+class user_invitation_create_form(BasePage, PrivilegesEditForm):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return user_invite_create.is_allowed_to_use(target, actor, should_raise_insufficient_priv_ex)
+        return user_invitation_create.is_allowed_to_use(target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
     def get_ms_inv_create_form(cls, user):
         return web.form.Form(
                             *([web.form.Textbox('invitee_email_addr', description=MSGS.lookup('create_inv_email_addr'))] +
-                            metaspace_privilege_select_elts(grantable_privileges=user.metaspace_privileges.get_grantable_privileges()) +
+                            cls.metaspace_privilege_select_elts(grantable_privileges=user.metaspace_privileges.get_grantable_privileges()) +
                             [web.form.Textarea('invitation_msg', description=MSGS.lookup('create_ms_inv_msg'), cols='40', rows='3'),
                             web.form.Button(name=MSGS.lookup('create_inv_submit_btn'))]))
     
     @classmethod
-    def render_page(cls, ms_session):
+    def render_page_full_html(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         cls.is_allowed_to_use(None, user)
         
         ms_inv_create_form_html = cls.get_ms_inv_create_form(user)().render()
-        return cls.wrap_content(RENDER.basic_form_template(ms_inv_create_form_html, 'ms_inv_create_form', user_invite_create.build_page_url()), user=user)
-        
-class user_invite_create(BasePage):
+        return cls.wrap_content(RENDER.basic_form_template(ms_inv_create_form_html, 'ms_inv_create_form', user_invitation_create.build_page_url()), user=user)
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        cls.is_allowed_to_use(None, user)
+        comparator = tc.MetaspacePrivilegeSet.comparator
+        grantable_privileges = sorted(user.metaspace_privileges.get_grantable_privileges(), comparator)
+        return json.dumps({'grantable_privileges': grantable_privileges})
+
+class user_invitation_create(BasePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
         return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.CREATE_USER_ACTION, None, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
-    def render_page(cls, ms_session):
+    def render_page_is_allowed_to_use(cls, ms_session):
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        ret_val = {'is_allowed_to_use': cls.is_allowed_to_use(None, user, should_raise_insufficient_priv_ex=False)}
+        return json.dumps(ret_val)
+    
+    @classmethod
+    def _render_page_helper(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         cls.is_allowed_to_use(None, user)
         
-        invitee_email_addr = web.input().get('invitee_email_addr')
+        invitee_email_addr = empty_str_to_none(web.input().get('invitee_email_addr'))
         metaspace_privileges = tc.MetaspacePrivilegeSet.create_from_list_of_strings(web.input(metaspace_privileges=[]).get('metaspace_privileges'))
         invitation_msg = web.input().get('invitation_msg')
-        ms_inv = tc.MetaspaceInvitation.create_new_invitation(PGDB, None, invitee_email_addr, metaspace_privileges, invitation_msg, user.user_id)
+        try:
+            ms_inv = tc.MetaspaceInvitation.create_new_invitation(PGDB, None, invitee_email_addr, metaspace_privileges, invitation_msg, user.user_id)
+        except:
+            ms_inv = None
         
         if ms_inv is not None and ms_inv.metaspace_invitation_id is not None:
-            ms_inv_link = user_invite_decide_form.build_page_url(query_params={'metaspace_invitation_code': ms_inv.metaspace_invitation_code})
+            ms_inv_link = user_invitation_decide_form.build_page_url(query_params={'metaspace_invitation_code': ms_inv.metaspace_invitation_code})
             util.send_metaspace_invitation_email(ms_inv, ms_inv_link)
             status_message = MSGS.lookup('inv_create_success', {'inv_url': ms_inv_link})
         else:
             status_message = MSGS.lookup('inv_create_failure')
-            
+        
+        return (user, ms_inv, status_message)
+    
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        user, ms_inv, status_message = cls._render_page_helper(ms_session)
         return cls.wrap_content(status_message, user=user)
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        ms_inv, status_message = cls._render_page_helper(ms_session)
+        if ms_inv is not None and ms_inv.metaspace_invitation_id is not None:
+            encountered_create_error = False
+        else:
+            encountered_create_error = True
+        return json.dumps({'encountered_create_error': encountered_create_error, 'status_message': status_message}, indent=2)
 
-class InviteDecideForm(object):
+class InvitationDecideForm(object):
     INV_ACCEPT_FORM = web.form.Form(
                                 web.form.Textbox('username', description=MSGS.lookup('username_label')),
                                 web.form.Password(name='cleartext_password_1', description=MSGS.lookup('new_password_label')),
@@ -590,7 +662,7 @@ class InviteDecideForm(object):
         ms_inv_decline_hidden = web.form.Hidden(name='was_accepted', value=cls.DECLINED).render()
         return cls.build_single_button_form(form_name, form_target, [ms_inv_code_hidden, ms_inv_decline_hidden], MSGS.lookup('inv_decline_submit_btn'))
 
-class user_invite_decide_form(BasePage, InviteDecideForm):
+class user_invitation_decide_form(BasePage, InvitationDecideForm):
     REQUIRES_VALID_SESSION = False
     
     @classmethod
@@ -600,14 +672,14 @@ class user_invite_decide_form(BasePage, InviteDecideForm):
         if ms_inv is None or ms_inv.decision_date is not None:
             return cls.wrap_content(MSGS.lookup('inv_not_found'))
         
-        form_target = user_invite_decide.build_page_url()
+        form_target = user_invitation_decide.build_page_url()
         ms_inv_accept_form_html = cls.build_accept_form('ms_inv_accept_form', form_target, 'metaspace_invitation_code', ms_inv_code)
         ms_inv_decline_form_html = cls.build_decline_form('ms_inv_decline_form', form_target, 'metaspace_invitation_code', ms_inv_code)
         
         ms_inv_decide_header = MSGS.lookup('ms_inv_decide_header', {'inv_code': ms_inv_code, 'invitee_email_addr': ms_inv.invitee_email_addr})
         return cls.wrap_content('<p>%s</p>\n <p>%s</p>\n <p>%s</p>\n <p>%s</p> ' % (ms_inv_decide_header, ms_inv.invitation_msg, ms_inv_accept_form_html, ms_inv_decline_form_html))
-        
-class user_invite_decide(BasePage):
+
+class user_invitation_decide(BasePage):
     REQUIRES_VALID_SESSION = False
     
     @classmethod
@@ -618,11 +690,11 @@ class user_invite_decide(BasePage):
             return cls.wrap_content(MSGS.lookup('inv_not_found'))
 
         was_accepted = web.input().get('was_accepted')
-        if was_accepted == user_invite_decide_form.DECLINED:
+        if was_accepted == user_invitation_decide_form.DECLINED:
             ms_inv.decline_invitation(PGDB)
             return cls.wrap_content(MSGS.lookup('ms_inv_declined_ack', {'inv_code': ms_inv_code}))
         
-        username = web.input().get('username')
+        username = empty_str_to_none(web.input().get('username'))
         user_statement = web.input().get('user_statement')
         cleartext_password_1 = web.input().get('cleartext_password_1')
         cleartext_password_2 = web.input().get('cleartext_password_2')
@@ -636,45 +708,62 @@ class user_invite_decide(BasePage):
         else:
             return cls.wrap_content(MSGS.lookup('ms_inv_user_create_failure'))
 
-#TODO: the invite create(/decide?) workflows have largely the same logic and content, can probably centralize and have wrappers pass in differentiated form/field names
-class nodespace_invite_create_form(BasePage):
+#TODO: the invitation create(/decide?) workflows have largely the same logic and content, can probably centralize and have wrappers pass in differentiated form/field names
+class nodespace_invitation_create_form(BasePage, PrivilegesEditForm):
+    @classmethod
+    def _get_grantable_privileges(cls, nodespace, user):
+        ns_access_for_user = nodespace.get_nodespace_access_for_user(PGDB, user.user_id)
+        grantable_privileges = ns_access_for_user.nodespace_privileges if ns_access_for_user is not None else tc.NodespacePrivilegeSet()
+        comparator = tc.NodespacePrivilegeSet.comparator
+        grantable_privileges = sorted(grantable_privileges, comparator)
+        return grantable_privileges
+    
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return nodespace_invite_create.is_allowed_to_use(target, actor, should_raise_insufficient_priv_ex)
+        return nodespace_invitation_create.is_allowed_to_use(target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
     def get_ns_inv_create_form(cls, nodespace, user):
-        ns_access_for_user = nodespace.get_nodespace_access_for_user(PGDB, user.user_id)
-        grantable_privileges = ns_access_for_user.nodespace_privileges if ns_access_for_user is not None else tc.NodespacePrivilegeSet()
+        grantable_privileges = cls._get_grantable_privileges(nodespace, user)
         return web.form.Form(
                             *([web.form.Textbox('invitee_email_addr', description=MSGS.lookup('create_inv_email_addr'))] +
-                            nodespace_privilege_select_elts(grantable_privileges=grantable_privileges) +
+                            cls.nodespace_privilege_select_elts(grantable_privileges=grantable_privileges) +
                             [web.form.Textarea('invitation_msg', description=MSGS.lookup('create_ns_inv_msg'), cols='40', rows='3'),
                             web.form.Button(name=MSGS.lookup('create_inv_submit_btn'))]))
     
     @classmethod
-    def render_page(cls, ms_session):
+    def _render_page_helper(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, web.input().get('nodespace_id'))
         cls.is_allowed_to_use(nodespace, user)
+        return (user, nodespace)
         
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        user, nodespace = cls._render_page_helper(ms_session)
         nodespace_id_hidden = web.form.Hidden(name='nodespace_id', value=web.input().get('nodespace_id'))
         ns_inv_create_form_html = '%s %s' % (nodespace_id_hidden.render(), cls.get_ns_inv_create_form(nodespace, user).render())
-        return cls.wrap_content(RENDER.basic_form_template(ns_inv_create_form_html, 'ns_inv_create_form', nodespace_invite_create.build_page_url()), user=user)
+        return cls.wrap_content(RENDER.basic_form_template(ns_inv_create_form_html, 'ns_inv_create_form', nodespace_invitation_create.build_page_url()), user=user)
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        user, nodespace = cls._render_page_helper(ms_session)
+        grantable_privileges = cls._get_grantable_privileges(nodespace, user)
+        return json.dumps({'grantable_privileges': grantable_privileges})
 
-class nodespace_invite_create(BasePage):
+class nodespace_invitation_create(BasePage):
     @classmethod
     def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
         return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.ALTER_NODESPACE_ACCESS_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
-    def render_page(cls, ms_session):
+    def _render_page_helper(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, web.input().get('nodespace_id'))
         
         cls.is_allowed_to_use(nodespace, user)
         
-        invitee_email_addr = web.input().get('invitee_email_addr')
+        invitee_email_addr = empty_str_to_none(web.input().get('invitee_email_addr'))
         nodespace_privileges = tc.NodespacePrivilegeSet.create_from_list_of_strings(web.input(nodespace_privileges=[]).get('nodespace_privileges'))
         invitee_user = tc.User.get_existing_user_by_email(PGDB, invitee_email_addr)
         if invitee_user is None:
@@ -684,15 +773,29 @@ class nodespace_invite_create(BasePage):
         ns_inv = tc.NodespaceInvitation.create_new_invitation(PGDB, None, invitee_email_addr, nodespace.nodespace_id, nodespace_privileges, invitation_msg, user.user_id)
         
         if ns_inv is not None and ns_inv.nodespace_invitation_id is not None:
-            ns_inv_link = nodespace_invite_decide_form.build_page_url(query_params={'nodespace_invitation_code': ns_inv.nodespace_invitation_code})
+            ns_inv_link = nodespace_invitation_decide_form.build_page_url(query_params={'nodespace_invitation_code': ns_inv.nodespace_invitation_code})
             util.send_nodespace_invitation_email(nodespace.nodespace_name, ns_inv, ns_inv_link)
             status_message = MSGS.lookup('inv_create_success', {'inv_url': ns_inv_link})
         else:
             status_message = MSGS.lookup('inv_create_failure')
         
+        return (user, ns_inv, status_message)
+    
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        user, ns_inv, status_message = cls._render_page_helper(ms_session)
         return cls.wrap_content(status_message, user=user)
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        user, ns_inv, status_message = cls._render_page_helper(ms_session)
+        if ns_inv is not None and ns_inv.nodespace_invitation_id is not None:
+            encountered_create_error = False
+        else:
+            encountered_create_error = True
+        return json.dumps({'encountered_create_error': encountered_create_error, 'status_message': status_message}, indent=2)
 
-class nodespace_invite_decide_form(BasePage, InviteDecideForm):
+class nodespace_invitation_decide_form(BasePage, InvitationDecideForm):
     REQUIRES_VALID_SESSION = False
     
     @classmethod
@@ -706,7 +809,7 @@ class nodespace_invite_decide_form(BasePage, InviteDecideForm):
         nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, ns_inv.nodespace_id)
         invitee_user = tc.User.get_existing_user_by_email(PGDB, ns_inv.invitee_email_addr)
         
-        form_target = nodespace_invite_decide.build_page_url()
+        form_target = nodespace_invitation_decide.build_page_url()
         form_name = 'ns_inv_accept_form'
         header_content_dict = {'inv_code': ns_inv_code, 'nodespace_name': nodespace.nodespace_name, 'invitee_email_addr': ns_inv.invitee_email_addr}
         if invitee_user is not None:
@@ -722,7 +825,7 @@ class nodespace_invite_decide_form(BasePage, InviteDecideForm):
         
         return cls.wrap_content('<p>%s</p>\n <p>%s</p>\n <p>%s</p>\n <p>%s</p> ' % (ns_inv_decide_header, ns_inv.invitation_msg, ns_inv_accept_form_html, ns_inv_decline_form_html))
 
-class nodespace_invite_decide(BasePage):
+class nodespace_invitation_decide(BasePage):
     REQUIRES_VALID_SESSION = False
     
     @classmethod
@@ -735,7 +838,7 @@ class nodespace_invite_decide(BasePage):
         nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, ns_inv.nodespace_id)
         
         was_accepted = web.input().get('was_accepted')
-        if was_accepted == nodespace_invite_decide_form.DECLINED:
+        if was_accepted == nodespace_invitation_decide_form.DECLINED:
             ns_inv.decline_invitation(PGDB)
             return cls.wrap_content(MSGS.lookup('ns_inv_declined_ack', {'inv_code': ns_inv_code, 'nodespace_name': nodespace.nodespace_name}))
         
@@ -748,7 +851,7 @@ class nodespace_invite_decide(BasePage):
         if invitee_user is not None:
             ns_inv.accept_invitation(PGDB, invitee_user.user_id)
         else:
-            invitee_user = ns_inv.create_user_and_accept_invitation(DB_TUPLE, web.input().get('username'), cleartext_password_1, web.input().get('user_statement'))
+            invitee_user = ns_inv.create_user_and_accept_invitation(DB_TUPLE, empty_str_to_none(web.input().get('username')), cleartext_password_1, web.input().get('user_statement'))
         
         nodespace_access_entry = nodespace.get_nodespace_access_for_user(PGDB, invitee_user.user_id)
         
@@ -880,27 +983,27 @@ class user_info_edit(BasePage):
         return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.ALTER_USER_INFO_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
-    def render_page_full_html(cls, ms_session):
-        editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
-        edited_user = tc.User.get_existing_user_by_id(PGDB, int(web.input().get('edited_user_id')))
-        cls.is_allowed_to_use(edited_user, editing_user)
-        
-        edited_user.set_and_save_user_info(PGDB, web.input().get('username'), web.input().get('email_addr'), web.input().get('user_statement'), editing_user.user_id)
-        
-        web.found(user_view.build_page_url(query_params={'viewed_user_id': edited_user.user_id}))
-    
-    @classmethod
-    def render_page_json(cls, ms_session):
+    def _render_page_helper(cls, ms_session):
         editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         edited_user = tc.User.get_existing_user_by_id(PGDB, int(web.input().get('edited_user_id')))
         cls.is_allowed_to_use(edited_user, editing_user)
         
         encountered_update_error = False
         try:
-            edited_user.set_and_save_user_info(PGDB, web.input().get('username'), web.input().get('email_addr'), web.input().get('user_statement'), editing_user.user_id)
+            edited_user.set_and_save_user_info(PGDB, empty_str_to_none(web.input().get('username')), web.input().get('email_addr'), web.input().get('user_statement'), editing_user.user_id)
         except:
             encountered_update_error = True
         
+        return (edited_user, encountered_update_error)
+        
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        edited_user, encountered_update_error = cls._render_page_helper(ms_session)
+        web.found(user_view.build_page_url(query_params={'viewed_user_id': edited_user.user_id}))
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        edited_user, encountered_update_error = cls._render_page_helper(ms_session)
         return json.dumps({'encountered_update_error': encountered_update_error}, indent=2)
 
 class user_change_pass_form(BasePage):
@@ -988,20 +1091,27 @@ class NodespaceList(BasePage, ListTablePage):
         return {'nodespace_name_link': nodespace_name_link, 'nodespace_description': web.websafe(query_row.nodespace_description)}
     
     @classmethod
-    def render_page_full_html(cls, ms_session):
+    def render_page_is_allowed_to_use(cls, ms_session):
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        ret_val = {'is_allowed_to_use': cls.is_allowed_to_use(None, user, should_raise_insufficient_priv_ex=False)}
+        return json.dumps(ret_val)
+    
+    @classmethod
+    def _render_page_helper(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         cls.is_allowed_to_use(None, user)
-        
         nodespaces = cls.get_nodespaces(PGDB, user)
+        return user, nodespaces
+    
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        user, nodespaces = cls._render_page_helper(ms_session)
         page_content = cls.basic_table_content(nodespaces) if len(nodespaces) > 0 else ''
         return cls.wrap_content(page_content, user=user)
     
     @classmethod
     def render_page_json(cls, ms_session):
-        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
-        cls.is_allowed_to_use(None, user)
-        
-        nodespaces = cls.get_nodespaces(PGDB, user)
+        user, nodespaces = cls._render_page_helper(ms_session)
         nodespaces_dict_list = [{'nodespace_name': ns.nodespace_name, 
                                             'nodespace_description': ns.nodespace_description,
                                             'nodespace_id': ns.nodespace_id} for ns in nodespaces]
@@ -1087,7 +1197,13 @@ class user_list_all(BasePage, ListTablePage):
     def _get_user_list(cls, viewing_user):
         cls.is_allowed_to_use(None, viewing_user)
         return tc.User.get_all_users(PGDB)
-        
+    
+    @classmethod
+    def render_page_is_allowed_to_use(cls, ms_session):
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        ret_val = {'is_allowed_to_use': cls.is_allowed_to_use(None, user, should_raise_insufficient_priv_ex=False)}
+        return json.dumps(ret_val)
+    
     @classmethod
     def render_page_full_html(cls, ms_session):
         viewing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
@@ -1104,7 +1220,7 @@ class user_list_all(BasePage, ListTablePage):
                             'modifier': user.modifier, 'modification_date': str(user.modification_date)} for user in users]
         return json.dumps(user_dict_list, indent=2)
 
-class metaspace_access_edit_form(BasePage):
+class metaspace_access_edit_form(BasePage, PrivilegesEditForm):
     @classmethod
     def _get_content_summary(cls, user, extra_display_info):
         if user is None:
@@ -1120,7 +1236,7 @@ class metaspace_access_edit_form(BasePage):
         grantable_privileges = editing_user.metaspace_privileges.get_grantable_privileges()
         selected_privs = edited_user.metaspace_privileges
         is_enabled_radio_opts = [(True, MSGS.lookup('ms_enabled_desc')), (False, MSGS.lookup('ms_disabled_desc'))]
-        return web.form.Form(*(metaspace_privilege_select_elts(grantable_privileges=grantable_privileges, selected_privileges=selected_privs) +
+        return web.form.Form(*(cls.metaspace_privilege_select_elts(grantable_privileges=grantable_privileges, selected_privileges=selected_privs) +
                             [web.form.Radio('is_enabled', is_enabled_radio_opts, value=edited_user.is_enabled, description=MSGS.lookup('user_is_enabled')),
                              web.form.Button(name=MSGS.lookup('update_ms_privs_submit_btn'))]))
     
@@ -1150,7 +1266,7 @@ class metaspace_access_edit(BasePage):
         
         web.found(user_view.build_page_url(query_params={'viewed_user_id': edited_user.user_id}))
 
-class nodespace_access_edit_form(BasePage):
+class nodespace_access_edit_form(BasePage, PrivilegesEditForm):
     @classmethod
     def _get_content_summary(cls, user, extra_display_info):
         if user is None:
@@ -1170,7 +1286,7 @@ class nodespace_access_edit_form(BasePage):
         cur_access = tc.NodespaceAccessEntry.get_existing_access_entry(PGDB, nodespace_id, edited_user.user_id)
         selected_privs = cur_access.nodespace_privileges
         is_enabled_radio_opts = [(True, MSGS.lookup('ns_enabled_desc')), (False, MSGS.lookup('ns_disabled_desc'))]
-        return web.form.Form(*(nodespace_privilege_select_elts(grantable_privileges=grantable_privileges, selected_privileges=selected_privs) +
+        return web.form.Form(*(cls.nodespace_privilege_select_elts(grantable_privileges=grantable_privileges, selected_privileges=selected_privs) +
                             [web.form.Radio('is_enabled', is_enabled_radio_opts, value=cur_access.is_enabled, description=MSGS.lookup('user_is_enabled')),
                              web.form.Button(name=MSGS.lookup('update_ns_privs_submit_btn'))]))
     
@@ -1224,7 +1340,7 @@ class metaspace_command_list(BasePage, ListTablePage):
     @classmethod
     def render_page_is_allowed_to_use(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
-        ret_val = {'is_allowed_to_use': cls.is_allowed_to_use(None, user)}
+        ret_val = {'is_allowed_to_use': cls.is_allowed_to_use(None, user, should_raise_insufficient_priv_ex=False)}
         return json.dumps(ret_val)
     
     @classmethod
@@ -1233,10 +1349,11 @@ class metaspace_command_list(BasePage, ListTablePage):
         cls.is_allowed_to_use(None, user)
         
         cmd_list = []
-        for page_class in [nodespace_create_form, user_invite_create_form, nodespace_list_all, user_list_all]:
-            page_name = page_class.get_page_name()
-            page_url = page_class.build_page_url()
-            cmd_list.append({'cmd_link': util.a_elt(link_text=page_name, href_att_val=page_url)})
+        for page_class in [nodespace_create_form, user_invitation_create_form, nodespace_list_all, user_list_all]:
+            if page_class.is_allowed_to_use(None, user, should_raise_insufficient_priv_ex=False):
+                page_name = page_class.get_page_name()
+                page_url = page_class.build_page_url()
+                cmd_list.append({'cmd_link': util.a_elt(link_text=page_name, href_att_val=page_url)})
         
         return cls.wrap_content(cls.basic_table_content(cmd_list), user=user)
 
@@ -1415,8 +1532,8 @@ so build it from a list of page classes since the pages can each generate their 
 """
 page_classes = [login_form, login_verify, logout, auth_status, 
                 nodespace_create_form, nodespace_create, nodespace_view, nodespace_edit_form, nodespace_edit,
-                user_invite_create_form, user_invite_create, user_invite_decide_form, user_invite_decide, 
-                nodespace_invite_create_form, nodespace_invite_create, nodespace_invite_decide_form, nodespace_invite_decide, 
+                user_invitation_create_form, user_invitation_create, user_invitation_decide_form, user_invitation_decide, 
+                nodespace_invitation_create_form, nodespace_invitation_create, nodespace_invitation_decide_form, nodespace_invitation_decide, 
                 nodespace_access_view, user_view, user_info_edit_form, user_info_edit, user_change_pass_form, user_change_pass,
                 nodespace_list_accessible, nodespace_list_all, user_list_nodespace, user_list_all, 
                 metaspace_access_edit_form, metaspace_access_edit, 

@@ -23,6 +23,7 @@ GREMLIN_LIB_FILES = ['groovy_scripts/GremlinUtils.groovy']
 
 SMTP_SERVER = 'mail.my-server.com'
 SMTP_PORT = 587
+SMTP_STARTTLS = True
 SMTP_USERNAME = 'tripel.email.user@my-server.com'
 SMTP_PASS_FILENAME = 'config/smtppass'
 DEFAULT_FROM_ADDRESS = 'tripel.email.user@my-server.com'

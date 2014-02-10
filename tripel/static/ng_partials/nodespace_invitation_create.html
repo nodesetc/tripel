@@ -1,0 +1,44 @@
+<div ng-show="createStatus.encounteredCreateError != null">
+    <!-- TODO: would be nice to get this working with ng-class -->
+    <div class="alert alert-error" ng-show="createStatus.encounteredCreateError == true">
+        {{createStatus.statusMessage}}
+    </div>
+    <div class="alert alert-success" ng-show="createStatus.encounteredCreateError == false">
+        {{createStatus.statusMessage}}
+    </div>
+</div>
+
+<form class="form-inline" ng-submit="submitForm();">
+    <label>
+        <span ng-i18next="create_inv_email_addr"></span><br>
+        <input type="text" name="invitee_email_addr" ng-model="invitationInfo.invitee_email_addr"/>
+    </label>
+    <br><br>
+    
+    <!-- TODO: would be nice to get the checkboxes working with ng-repeat -->
+    <label class="checkbox" ng-show="privilegeInfo.grantablePrivileges.indexOf('contributor') >= 0">
+        <input type="checkbox" name="nodespace_privileges" ng-model="invitationInfo.selected_nodespace_privileges['contributor']"/>
+        <span ng-i18next="contributor_priv_title"></span>: <span ng-i18next="contributor_priv_desc"></span>
+    </label><br>
+    <label class="checkbox" ng-show="privilegeInfo.grantablePrivileges.indexOf('editor') >= 0">
+        <input type="checkbox" name="nodespace_privileges" ng-model="invitationInfo.selected_nodespace_privileges['editor']"/>
+        <span ng-i18next="editor_priv_title"></span>: <span ng-i18next="editor_priv_desc"></span>
+    </label><br>
+    <label class="checkbox" ng-show="privilegeInfo.grantablePrivileges.indexOf('moderator') >= 0">
+        <input type="checkbox" name="nodespace_privileges" ng-model="invitationInfo.selected_nodespace_privileges['moderator']"/>
+        <span ng-i18next="moderator_priv_title"></span>: <span ng-i18next="moderator_priv_desc"></span>
+    </label><br>
+    <label class="checkbox" ng-show="privilegeInfo.grantablePrivileges.indexOf('admin') >= 0">
+        <input type="checkbox" name="nodespace_privileges" ng-model="invitationInfo.selected_nodespace_privileges['admin']"/>
+        <span ng-i18next="admin_priv_title"></span>: <span ng-i18next="admin_priv_desc"></span>
+    </label><br>
+    <br>
+    
+    <label>
+        <span ng-i18next="create_ns_inv_msg"></span><br>
+        <textarea rows="3" cols="40" name="invitation_msg" ng-model="invitationInfo.invitation_msg"></textarea>
+    </label>
+    <br><br>
+    
+    <button class="btn btn-inverse btn-small"><span ng-i18next="create_inv_submit_btn"></span></button>
+</form>

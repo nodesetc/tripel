@@ -27,6 +27,7 @@ trplApp.config(
 				})
 			.state('appView.metaspaceCmds.userInvitationCreate', {
 					url: '/user_invitation_create',
+					controller: 'CreateUserInvitationCtrl',
 					templateUrl: 'static/ng_partials/user_invitation_create.html'
 				})
 			.state('appView.metaspaceCmds.nodespaceListAll', {
@@ -34,7 +35,7 @@ trplApp.config(
 					controller: 'NodespaceListAllCtrl',
 					templateUrl: 'static/ng_partials/nodespace_list.html'
 				})
-			.state('appView.metaspaceCmds.nodespaceListAll.viewNodespace', {
+			.state('appView.metaspaceCmds.nodespaceListAll.selectNodespace', {
 					url: '/:nodespaceId',
 					controller: '',
 					templateUrl: 'static/ng_partials/nodespace_view.html'
@@ -63,19 +64,29 @@ trplApp.config(
 					controller: 'NodespaceListAccessibleCtrl',
 					templateUrl: 'static/ng_partials/nodespace_list.html'
 				})
-			.state('appView.nodespaceListAccessible.nodespaceInvitationCreate', {
-					url: '/nodespace_invitation_create',
-					templateUrl: 'static/ng_partials/nodespace_invitation_create.html'
-				})
-			.state('appView.nodespaceListAccessible.viewNodespace', {
+			.state('appView.nodespaceListAccessible.selectNodespace', {
 					url: '/:nodespaceId',
 					controller: '',
 					templateUrl: 'static/ng_partials/nodespace_view.html'
 				})
-			.state('appView.nodespaceListAccessible.viewNodespace.browseNodes', {
+			.state('appView.nodespaceListAccessible.selectNodespace.browseNodes', {
 					url: '/browse_nodes',
 					controller: 'NodespaceBrowseCtrl',
 					templateUrl: 'static/ng_partials/nodespace_browse_nodes.html'
+				})
+			.state('appView.nodespaceListAccessible.selectNodespace.nodespaceInfoEdit', {
+					url: '/nodespace_info_edit',
+					controller: 'EditNodespaceCtrl',
+					templateUrl: 'static/ng_partials/nodespace_edit.html'
+				})
+			.state('appView.nodespaceListAccessible.selectNodespace.userList', {
+					url: '/user_list_nodespace',
+					templateUrl: 'static/ng_partials/user_list_nodespace.html'
+				})
+			.state('appView.nodespaceListAccessible.selectNodespace.nodespaceInvitationCreate', {
+					url: '/nodespace_invitation_create',
+					controller: 'CreateNodespaceInvitationCtrl',
+					templateUrl: 'static/ng_partials/nodespace_invitation_create.html'
 				});
 		
 		$urlRouterProvider.otherwise('/app_view/nodespaces_accessible');
@@ -107,7 +118,7 @@ trplApp.service('trplBackendSvc',
 			//by default, angular sends data over as json, we want the more traditional form encoding.
 			//see also:  http://stackoverflow.com/questions/11442632/how-can-i-make-angular-js-post-data-as-form-data-instead-of-a-request-payload
 			//           http://victorblog.com/2012/12/20/make-angularjs-http-service-behave-like-jquery-ajax/
-				reqConfig['data'] = $.param(reqParams);
+				reqConfig['data'] = $.param(reqParams, true);
 				reqConfig['headers'] = {'Content-Type': 'application/x-www-form-urlencoded'};
 			} else {
 				reqConfig['params'] = reqParams;
@@ -135,11 +146,15 @@ trplApp.service('trplBackendSvc',
 		};
 		
 		this.reqObj = function(reqMethod, callbackFn, subUrl, params) {
-			var reqCallbackFn = function(respData, status, headers, config) {
+			var successCallbackFn = function(respData, status, headers, config) {
 				callbackFn(respData);
 			};
 			
-			this.httpReq(reqMethod, subUrl, params, reqCallbackFn, reqCallbackFn);
+			var errorCallbackFn = function(respData, status, headers, config) {
+				callbackFn(null);
+			};
+			
+			this.httpReq(reqMethod, subUrl, params, successCallbackFn, errorCallbackFn);
 		}
 		
 		this.getObjList = function(callbackFn, subUrl, params) {
@@ -193,6 +208,26 @@ trplApp.service('trplBackendSvc',
 		this.createNodespace = function(callbackFn, nodespaceData) {
 			return this.postReq(callbackFn, '/nodespace_create', nodespaceData);
 		};
+		
+		this.editNodespace = function(callbackFn, nodespaceData) {
+			return this.postReq(callbackFn, '/nodespace_edit', nodespaceData);
+		};
+		
+		this.getGrantableMetaspacePrivileges = function(callbackFn) {
+			return this.getObj(callbackFn, '/user_invitation_create_form', {});
+		};
+		
+		this.createUserInvitation = function(callbackFn, invitationData) {
+			return this.postReq(callbackFn, '/user_invitation_create', invitationData);
+		};
+		
+		this.getGrantableNodespacePrivileges = function(callbackFn, nodespaceId) {
+			return this.getObj(callbackFn, '/nodespace_invitation_create_form', {nodespace_id: nodespaceId});
+		};
+		
+		this.createNodespaceInvitation = function(callbackFn, invitationData) {
+			return this.postReq(callbackFn, '/nodespace_invitation_create', invitationData);
+		};
 	}
 );
 
@@ -209,7 +244,7 @@ trplApp.service('paneListSvc',
 					
 					var callbackFn = function(isAllowedToUseMetaspaceCmds) {
 						panes[0].isUsable = isAllowedToUseMetaspaceCmds;
-					}
+					};
 					
 					trplBackendSvc.isAllowedToUse('metaspace_command_list', callbackFn);
 					
@@ -217,10 +252,20 @@ trplApp.service('paneListSvc',
 					
 				case 'metaspace-commands':
 					var urlBase = '#/app_view/metaspace_cmds/';
-					var panes = [{title: i18n.t('nodespace_create_form_page_name'), url: urlBase+'nodespace_create', isSelected: false, isUsable: true},
-							{title: i18n.t('user_invite_create_form_page_name'), url: urlBase+'user_invitation_create', isSelected: false, isUsable: true},
-							{title: i18n.t('nodespace_list_all_page_name'), url: urlBase+'nodespaces_all', isSelected: false, isUsable: true},
-							{title: i18n.t('user_list_all_page_name'), url: urlBase+'users', isSelected: false, isUsable: true}];
+					var panes = [{title: i18n.t('nodespace_create_form_page_name'), url: urlBase+'nodespace_create', isSelected: false, isUsable: false},
+							{title: i18n.t('user_invitation_create_form_page_name'), url: urlBase+'user_invitation_create', isSelected: false, isUsable: false},
+							{title: i18n.t('nodespace_list_all_page_name'), url: urlBase+'nodespaces_all', isSelected: false, isUsable: false},
+							{title: i18n.t('user_list_all_page_name'), url: urlBase+'users', isSelected: false, isUsable: false}];
+					
+					var callbackFn = function(isAllowedToUseCmd, pane) {
+						pane.isUsable = isAllowedToUseCmd;
+					};
+					
+					['nodespace_create', 'user_invitation_create', 'nodespace_list_all', 'user_list_all'].forEach(function(cmdName, idx, arr) {
+							var paneCallbackFn = function(isAllowedToUseCmd) { callbackFn(isAllowedToUseCmd, panes[idx]); };
+							trplBackendSvc.isAllowedToUse(cmdName, paneCallbackFn);
+						}
+					);
 					
 					return panes
 				
@@ -236,9 +281,10 @@ trplApp.service('paneListSvc',
 					var panes = [{title: i18n.t('nodespace_browse_tab_label'), url: urlBase+'browse_nodes', isSelected: false, isUsable: true},
 								{title: i18n.t('nodespace_edit_form_page_name'), url: urlBase+'nodespace_info_edit', isSelected: false, isUsable: false},
 								{title: i18n.t('nodespace_user_list_tab_label'), url: urlBase+'user_list_nodespace', isSelected: false, isUsable: false},
-								{title: i18n.t('nodespace_invite_create_form_page_name'), url: urlBase+'nodespace_invite_create', isSelected: false, isUsable: false}];
+								{title: i18n.t('nodespace_invitation_create_form_page_name'), url: urlBase+'nodespace_invitation_create', isSelected: false, isUsable: false}];
 					
-					var callbackFn = function(nodespaceViewCmdPerms) {
+					var callbackFn = function(nodespaceViewResult) {
+						var nodespaceViewCmdPerms = nodespaceViewResult.perms_for_user;
 						panes[1].isUsable = nodespaceViewCmdPerms['is_allowed_to_edit_nodespace'];
 						panes[2].isUsable = nodespaceViewCmdPerms['is_allowed_to_list_nodespace_users'];
 						panes[3].isUsable = nodespaceViewCmdPerms['is_allowed_to_invite_nodespace_users'];
@@ -407,6 +453,7 @@ trplApp.controller('CreateNodespaceCtrl',
 		var nodespaceInfo = $scope.nodespaceInfo = {};
 		var updateStatus = $scope.updateStatus = {'encounteredUpdateError': null};
 		var createStatus = $scope.createStatus = {'encounteredCreateError': null};
+		$scope.submitBtnContentKey = 'create_ns_submit_btn';
 		
 		var nodespaceCreateCallbackFn = function(createResult) {
 			if (createResult == null) {
@@ -421,6 +468,122 @@ trplApp.controller('CreateNodespaceCtrl',
 			trplBackendSvc.createNodespace(nodespaceCreateCallbackFn, nsCreateData);
 		};
 		$scope.submitForm = submitNodespaceCreateForm;
+	}
+);
+
+//TODO:  obviously this needs centralization, because it's silly to have totally separate controllers for edit and create when so much of the code is the same
+trplApp.controller('EditNodespaceCtrl',
+	function($scope, $stateParams, trplBackendSvc) {
+		var nodespaceInfo = $scope.nodespaceInfo = {};
+		var updateStatus = $scope.updateStatus = {'encounteredUpdateError': null};
+		var createStatus = $scope.createStatus = {'encounteredCreateError': null};
+		$scope.submitBtnContentKey = 'edit_ns_submit_btn';
+		
+		var nodespaceInfoCallbackFn = function(nodespaceViewResult) {
+			nodespaceInfo = $scope.nodespaceInfo = nodespaceViewResult.nodespace_info;
+		};
+		trplBackendSvc.getNodespaceViewInfo(nodespaceInfoCallbackFn, $stateParams.nodespaceId);
+		
+		var nodespaceEditCallbackFn = function(updateResult) {
+			if (updateResult == null) {
+				updateStatus.encounteredUpdateError = true;
+			} else {
+				updateStatus.encounteredUpdateError = Boolean(updateResult.encountered_update_error);
+			}
+		};
+		
+		var submitNodespaceEditForm = function() {
+			var nsEditData = {'nodespace_id': $stateParams.nodespaceId,
+								'nodespace_name': nodespaceInfo.nodespace_name, 
+								'nodespace_description': nodespaceInfo.nodespace_description};
+			trplBackendSvc.editNodespace(nodespaceEditCallbackFn, nsEditData);
+		};
+		$scope.submitForm = submitNodespaceEditForm;
+	}
+);
+
+trplApp.controller('CreateUserInvitationCtrl',
+	function($scope, trplBackendSvc) {
+		var privilegeInfo = $scope.privilegeInfo = {grantablePrivileges: []};
+		var invitationInfo = $scope.invitationInfo = {invitee_email_addr: null, 
+														selected_metaspace_privileges: {create_space: false, create_user: false, super: false}, 
+														invitation_msg: null};
+		var createStatus = $scope.createStatus = {encounteredCreateError: null, statusMessage: null};
+		
+		var getGrantableMetaspacePrivsCallbackFn = function(privInfo) {
+			privilegeInfo.grantablePrivileges = privInfo.grantable_privileges;
+		};
+		trplBackendSvc.getGrantableMetaspacePrivileges(getGrantableMetaspacePrivsCallbackFn);
+		
+		var invCreateCallbackFn = function(createResult) {
+		//TODO: this basic thing is frequently repeated, abstract this to a helper function and the error message html to a partial
+			if (createResult == null) {
+				createStatus.encounteredCreateError = true;
+			} else {
+				createStatus.encounteredCreateError = Boolean(createResult.encountered_create_error);
+				createStatus.statusMessage = createResult.status_message;
+			}
+		};
+		
+		var submitForm = function() {
+			var granted_metaspace_privs = [];
+			['create_user', 'create_space', 'super'].forEach(function(priv, idx, arr) {
+					if (invitationInfo.selected_metaspace_privileges[priv]) {
+						granted_metaspace_privs.push(priv);
+					}
+				}
+			);
+			
+			invCreateData = {invitee_email_addr: invitationInfo.invitee_email_addr, 
+								metaspace_privileges: granted_metaspace_privs,
+								invitation_msg: invitationInfo.invitation_msg};
+			
+			trplBackendSvc.createUserInvitation(invCreateCallbackFn, invCreateData);
+		};
+		$scope.submitForm = submitForm;
+	}
+);
+
+trplApp.controller('CreateNodespaceInvitationCtrl',
+	function($scope, $stateParams, trplBackendSvc) {
+		var privilegeInfo = $scope.privilegeInfo = {grantablePrivileges: []};
+		var invitationInfo = $scope.invitationInfo = {invitee_email_addr: null, 
+														selected_nodespace_privileges: {contributor: false, editor: false, 
+																						moderator: false, admin: false}, 
+														invitation_msg: null};
+		var createStatus = $scope.createStatus = {encounteredCreateError: null, statusMessage: null};
+		
+		var getGrantableNodespacePrivsCallbackFn = function(privInfo) {
+			privilegeInfo.grantablePrivileges = privInfo.grantable_privileges;
+		};
+		trplBackendSvc.getGrantableNodespacePrivileges(getGrantableNodespacePrivsCallbackFn, $stateParams.nodespaceId);
+		
+		var invCreateCallbackFn = function(createResult) {
+			if (createResult == null) {
+				createStatus.encounteredCreateError = true;
+			} else {
+				createStatus.encounteredCreateError = Boolean(createResult.encountered_create_error);
+				createStatus.statusMessage = createResult.status_message;
+			}
+		};
+		
+		var submitForm = function() {
+			var granted_nodespace_privs = [];
+			['contributor', 'editor', 'moderator', 'admin'].forEach(function(priv, idx, arr) {
+					if (invitationInfo.selected_nodespace_privileges[priv]) {
+						granted_nodespace_privs.push(priv);
+					}
+				}
+			);
+			
+			invCreateData = {invitee_email_addr: invitationInfo.invitee_email_addr, 
+								nodespace_privileges: granted_nodespace_privs,
+								invitation_msg: invitationInfo.invitation_msg,
+								nodespace_id: $stateParams.nodespaceId};
+			
+			trplBackendSvc.createNodespaceInvitation(invCreateCallbackFn, invCreateData);
+		};
+		$scope.submitForm = submitForm;
 	}
 );
 

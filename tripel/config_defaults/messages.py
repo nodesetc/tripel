@@ -13,10 +13,10 @@ class Messages(object):
                 'nodespace_create_form_page_name': 'create new nodespace',
                 'nodespace_view_page_name': 'nodespace info',
                 'nodespace_edit_form_page_name': 'edit nodespace info',
-                'user_invite_create_form_page_name': 'invite new user',
-                'user_invite_decide_form_page_name': 'accept/decline invitation',
-                'nodespace_invite_create_form_page_name': 'invite user to nodespace',
-                'nodespace_invite_decide_form_page_name': 'accept/decline nodespace invitation',
+                'user_invitation_create_form_page_name': 'invite new user',
+                'user_invitation_decide_form_page_name': 'accept/decline invitation',
+                'nodespace_invitation_create_form_page_name': 'invite user to nodespace',
+                'nodespace_invitation_decide_form_page_name': 'accept/decline nodespace invitation',
                 'nodespace_access_view_page_name': 'user access for nodespace',
                 'user_view_page_name': 'user info',
                 'user_info_edit_form_page_name': 'edit user info',
@@ -52,24 +52,24 @@ class Messages(object):
                 'logout_smry': '',
                 'nodespace_create_smry': '',
                 'nodespace_edit_smry': '',
-                'user_invite_decide_smry': '',
-                'nodespace_invite_decide_smry': '',
+                'user_invitation_decide_smry': '',
+                'nodespace_invitation_decide_smry': '',
                 'nodespace_access_view_smry': '',
                 'user_info_edit_smry': '',
                 'user_change_pass_smry': '',
                 'metaspace_access_edit_smry': '',
                 'nodespace_access_edit_smry': '',
                 'nodespace_view_smry': 'nodespace info for: %(nodespace_name)s',
-                'user_invite_create_form_smry': 'invite new user to metaspace',
+                'user_invitation_create_form_smry': 'invite new user to metaspace',
                 'auth_status_smry': 'current login status',
                 'nodespace_create_form_smry': 'create a new nodespace',
                 'nodespace_edit_form_smry': 'edit nodespace info for: %(nodespace_name)s',
-                'user_invite_create_form_smry': 'invite a new user',
-                'user_invite_create_smry': 'invitation created',
-                'user_invite_decide_form_smry': 'accept or decline invitation',
-                'nodespace_invite_create_form_smry': 'create nodespace invitation',
-                'nodespace_invite_create_smry': 'invitation created',
-                'nodespace_invite_decide_form_smry': 'accept or decline nodespace invitation',
+                'user_invitation_create_form_smry': 'invite a new user',
+                'user_invitation_create_smry': 'invitation created',
+                'user_invitation_decide_form_smry': 'accept or decline invitation',
+                'nodespace_invitation_create_form_smry': 'create nodespace invitation',
+                'nodespace_invitation_create_smry': 'invitation created',
+                'nodespace_invitation_decide_form_smry': 'accept or decline nodespace invitation',
                 'user_view_smry': 'user info for: %(username)s',
                 'my_user_info_edit_form_smry': 'edit my user info',
                 'other_user_info_edit_form_smry': 'edit user info for: %(username)s',
@@ -85,10 +85,13 @@ class Messages(object):
                 
                 'email_addr_label': 'email address',
                 'username_label': 'username',
-                'password_label': 'password',
+                'login_password_label': 'password',
+                'confirm_password_label': 'logged in user\'s current password',
                 'new_password_label': 'new password',
                 'reenter_password_label': 're-enter password',
                 'password_mismatch_error': 'passwords don\'t match',
+                'user_password_edit_error_msg': 'error updating password',
+                'user_password_edit_success_msg': 'password successfully updated',
                 
                 'login_submit_btn': 'login',
                 
@@ -144,10 +147,12 @@ class Messages(object):
                 'ns_no_access_header': 'no access to nodespace',
                 
                 'user_info_edit_submit_btn': 'update user info',
+                'user_info_edit_error_msg': 'error saving user info',
+                'user_info_edit_success_msg': 'successfully saved user info',
                 
                 'user_change_password_submit_btn': 'change password',
                 
-                'password_check_failed': 'incorrect password',
+                'password_check_failed': 'incorrect password entered',
                 
                 'ms_inv_email_subject': 'tripel account creation invitation',
                 'ms_inv_email_message': 'You have been invited to create a tripel user account.  To accept or decline the invitation, visit:\n%(inv_url)s\n\n%(inv_msg)s',
@@ -180,7 +185,10 @@ class Messages(object):
                 'ns_enabled_desc': 'enabled (user can access nodespace)',
                 'ns_disabled_desc': 'disabled (user can\'t access nodespace)',
                 
-                'update_ns_privs_submit_btn': 'update nodespace privileges'
+                'update_ns_privs_submit_btn': 'update nodespace privileges',
+                
+                'nodespace_user_list_tab_label': 'list users in nodespace',
+                'nodespace_browse_tab_label': 'browse nodespace'
             }
         }
     }

@@ -1,6 +1,7 @@
 import os
 import re
 import base64
+from threading import Thread
 from datetime import datetime
 import pytz
 
@@ -46,13 +47,25 @@ def get_websafe_dict_copy(original_dict):
 def init_web_config_mail_params():
     web.config.smtp_server = params.SMTP_SERVER
     web.config.smtp_port = params.SMTP_PORT
+    web.config.smtp_starttls = params.SMTP_STARTTLS
     web.config.smtp_username = params.SMTP_USERNAME
     web.config.smtp_password = get_file_contents(params.SMTP_PASS_FILENAME)
 
 def sendmail(from_addr, to_addr, subject, message, headers=None, **kw):
-    #TODO: this should happen asynchronously so the calling thread doesn't have to wait on the send
-    # http://docs.python.org/2/library/threading.html#thread-objects
-    web.utils.sendmail(from_addr, to_addr, subject, message, headers=headers, **kw)
+    '''
+    you probably want to use the asynchronous version (async_sendmail)
+    '''
+    try:
+        web.utils.sendmail(from_addr, to_addr, subject, message, headers=headers, **kw)
+        return True
+    except:
+        return False
+
+#TODO: figure out why this doesn't work, switch to using it in invitation emails once it's fixed.
+def async_sendmail(from_addr, to_addr, subject, message, headers=None, **kw):
+    def sendmail_callable():
+        web.utils.sendmail(from_addr, to_addr, subject, message, headers=headers, **kw)
+    Thread(target=sendmail_callable, name='tripel-AsyncSendmailThread').start()
 
 def send_metaspace_invitation_email(ms_inv, ms_inv_link):
     from_addr = params.DEFAULT_FROM_ADDRESS

@@ -1,29 +1,40 @@
-<form name="ms_inv_create_form" id="ms_inv_create_form" class="form-inline">
+<div ng-show="createStatus.encounteredCreateError != null">
+    <!-- TODO: would be nice to get this working with ng-class -->
+    <div class="alert alert-error" ng-show="createStatus.encounteredCreateError == true">
+        {{createStatus.statusMessage}}
+    </div>
+    <div class="alert alert-success" ng-show="createStatus.encounteredCreateError == false">
+        {{createStatus.statusMessage}}
+    </div>
+</div>
+
+<form class="form-inline" ng-submit="submitForm();">
     <label>
-        invitee email address <br>
-        <input type="text" name="invitee_email_addr"/>
+        <span ng-i18next="create_inv_email_addr"></span><br>
+        <input type="text" name="invitee_email_addr" ng-model="invitationInfo.invitee_email_addr"/>
     </label>
     <br><br>
     
-    <label class="checkbox">
-        <input type="checkbox" id="metaspace_privileges_create_user" value="create_user" name="metaspace_privileges"/> 
-        Create User: the ability to create new users
-    </label>
-    <label class="checkbox">
-        <input type="checkbox" id="metaspace_privileges_create_space" value="create_space" name="metaspace_privileges"/>
-        Create Space: can create new nodespaces
-    </label>
-    <label class="checkbox">
-        <input type="checkbox" id="metaspace_privileges_super" value="super" name="metaspace_privileges"/>
-        Super User: can do anything, so hand this out judiciously
-    </label>
-    <br><br>
+    <!-- TODO: would be nice to get the checkboxes working with ng-repeat -->
+    <label class="checkbox" ng-show="privilegeInfo.grantablePrivileges.indexOf('create_space') >= 0">
+        <input type="checkbox" name="metaspace_privileges" ng-model="invitationInfo.selected_metaspace_privileges['create_space']"/>
+        <span ng-i18next="create_space_priv_title"></span>: <span ng-i18next="create_space_priv_desc"></span>
+    </label><br>
+    <label class="checkbox" ng-show="privilegeInfo.grantablePrivileges.indexOf('create_user') >= 0">
+        <input type="checkbox" name="metaspace_privileges" ng-model="invitationInfo.selected_metaspace_privileges['create_user']"/>
+        <span ng-i18next="create_user_priv_title"></span>: <span ng-i18next="create_user_priv_desc"></span>
+    </label><br>
+    <label class="checkbox" ng-show="privilegeInfo.grantablePrivileges.indexOf('super') >= 0">
+        <input type="checkbox" name="metaspace_privileges" ng-model="invitationInfo.selected_metaspace_privileges['super']"/>
+        <span ng-i18next="super_priv_title"></span>: <span ng-i18next="super_priv_desc"></span>
+    </label><br>
+    <br>
     
     <label>
-        an optional message for the user you&#39;re creating<br>
-        <textarea rows="3" cols="40" name="invitation_msg" id="invitation_msg"></textarea>
+        <span ng-i18next="create_ms_inv_msg"></span><br>
+        <textarea rows="3" cols="40" name="invitation_msg" ng-model="invitationInfo.invitation_msg"></textarea>
     </label>
     <br><br>
     
-    <button name="create invitation" class="btn btn-inverse btn-small">create invitation</button>
+    <button class="btn btn-inverse btn-small"><span ng-i18next="create_inv_submit_btn"></span></button>
 </form>
