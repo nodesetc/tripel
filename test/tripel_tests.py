@@ -189,7 +189,7 @@ def User_create_and_retrieve_test():
 
 def Invitation_test():
     with AssertExceptionThrown(Exception):
-        Invitation.validate_invitation_code_format(Invitation.generate_random_invitation_code(Invitation.MIN_INVITE_CODE_LEN-2))
+        Invitation.validate_invitation_code_format(Invitation.generate_random_invitation_code(Invitation.MIN_INVITATION_CODE_LEN-2))
 
 class MetaspaceInvitation_tests(object):
     ms_inv_data = TestData.MS_INV_JASPER
@@ -201,28 +201,28 @@ class MetaspaceInvitation_tests(object):
         
         with AutoRollbackTransaction() as test_trans:
             creation_date_lb = DateTimeUtil.datetime_now_utc_aware()
-            ms_invite = MetaspaceInvitation.create_new_invitation(PGDB_TEST, ms_inv_data['metaspace_invitation_code'], ms_inv_data['invitee_email_addr'], 
+            ms_invitation = MetaspaceInvitation.create_new_invitation(PGDB_TEST, ms_inv_data['metaspace_invitation_code'], ms_inv_data['invitee_email_addr'], 
                             ms_inv_data['initial_metaspace_privileges'], ms_inv_data['invitation_msg'], ms_inv_data['creator'])
             creation_date_ub = DateTimeUtil.datetime_now_utc_aware()
-            ms_inv_data['metaspace_invitation_id'] = ms_invite.metaspace_invitation_id
-            ms_inv_data['metaspace_invitation_code'] = ms_invite.metaspace_invitation_code
+            ms_inv_data['metaspace_invitation_id'] = ms_invitation.metaspace_invitation_id
+            ms_inv_data['metaspace_invitation_code'] = ms_invitation.metaspace_invitation_code
             
-            assert creation_date_lb <= ms_invite.creation_date <= creation_date_ub
+            assert creation_date_lb <= ms_invitation.creation_date <= creation_date_ub
             assert ms_inv_data['metaspace_invitation_code'] is not None
             for field_name in MetaspaceInvitation.FIELD_NAMES:
                 if field_name not in ['creation_date']:
-                    assert ms_inv_data[field_name] == vars(ms_invite)[field_name]
+                    assert ms_inv_data[field_name] == vars(ms_invitation)[field_name]
 
-            ms_invite = MetaspaceInvitation.get_existing_invitation(PGDB_TEST, ms_inv_data['metaspace_invitation_code'])
+            ms_invitation = MetaspaceInvitation.get_existing_invitation(PGDB_TEST, ms_inv_data['metaspace_invitation_code'])
             
             for field_name in MetaspaceInvitation.FIELD_NAMES:
                 if field_name not in ['creation_date']:
-                    assert ms_inv_data[field_name] == vars(ms_invite)[field_name]
+                    assert ms_inv_data[field_name] == vars(ms_invitation)[field_name]
 
             decision_date_lb = DateTimeUtil.datetime_now_utc_aware()
-            ms_invite.create_user_and_accept_invitation(DB_TUPLE_PT_NM, 'jasper', 'passw0rd', 'no comment')
-            assert ms_invite.was_accepted
-            assert decision_date_lb <= ms_invite.decision_date <= DateTimeUtil.datetime_now_utc_aware()
+            ms_invitation.create_user_and_accept_invitation(DB_TUPLE_PT_NM, 'jasper', 'passw0rd', 'no comment')
+            assert ms_invitation.was_accepted
+            assert decision_date_lb <= ms_invitation.decision_date <= DateTimeUtil.datetime_now_utc_aware()
     
     def decline_test(self):
         ms_inv_data = self.ms_inv_data
@@ -230,16 +230,16 @@ class MetaspaceInvitation_tests(object):
         ms_inv_data['creator'] = admin_user.user_id
 
         with AutoRollbackTransaction() as test_trans:
-            ms_invite = MetaspaceInvitation.create_new_invitation(PGDB_TEST, ms_inv_data['metaspace_invitation_code'], ms_inv_data['invitee_email_addr'], 
+            ms_invitation = MetaspaceInvitation.create_new_invitation(PGDB_TEST, ms_inv_data['metaspace_invitation_code'], ms_inv_data['invitee_email_addr'], 
                             ms_inv_data['initial_metaspace_privileges'], ms_inv_data['invitation_msg'], ms_inv_data['creator'])
             
             decision_date_lb = DateTimeUtil.datetime_now_utc_aware()
-            ms_invite.decline_invitation(PGDB_TEST)
-            assert not ms_invite.was_accepted
-            assert decision_date_lb <= ms_invite.decision_date <= DateTimeUtil.datetime_now_utc_aware()
+            ms_invitation.decline_invitation(PGDB_TEST)
+            assert not ms_invitation.was_accepted
+            assert decision_date_lb <= ms_invitation.decision_date <= DateTimeUtil.datetime_now_utc_aware()
             
-            ms_invite = MetaspaceInvitation.get_existing_invitation(PGDB_TEST, ms_inv_data['metaspace_invitation_code'])
-            assert not ms_invite.was_accepted
+            ms_invitation = MetaspaceInvitation.get_existing_invitation(PGDB_TEST, ms_inv_data['metaspace_invitation_code'])
+            assert not ms_invitation.was_accepted
 
 def Nodespace_test():
     ns_data = TestData.NS_ARSFT
@@ -274,30 +274,30 @@ class NodespaceInvitation_tests(object):
         ns_inv_data['creator'] = admin_user.user_id
         
         with AutoRollbackTransaction() as test_trans:
-            ns_invite = NodespaceInvitation.create_new_invitation(PGDB_TEST, ns_inv_data['nodespace_invitation_code'], ns_inv_data['invitee_email_addr'], ns_inv_data['nodespace_id'], 
+            ns_invitation = NodespaceInvitation.create_new_invitation(PGDB_TEST, ns_inv_data['nodespace_invitation_code'], ns_inv_data['invitee_email_addr'], ns_inv_data['nodespace_id'], 
                             ns_inv_data['initial_nodespace_privileges'], ns_inv_data['invitation_msg'], ns_inv_data['creator'])
-            ns_inv_data['nodespace_invitation_id'] = ns_invite.nodespace_invitation_id
-            ns_inv_data['nodespace_invitation_code'] = ns_invite.nodespace_invitation_code
+            ns_inv_data['nodespace_invitation_id'] = ns_invitation.nodespace_invitation_id
+            ns_inv_data['nodespace_invitation_code'] = ns_invitation.nodespace_invitation_code
             
             assert ns_inv_data['nodespace_invitation_code'] is not None
             for field_name in NodespaceInvitation.FIELD_NAMES:
                 if field_name not in ['creation_date']:
-                    assert ns_inv_data[field_name] == vars(ns_invite)[field_name]
+                    assert ns_inv_data[field_name] == vars(ns_invitation)[field_name]
             
-            ns_invite = NodespaceInvitation.get_existing_invitation(PGDB_TEST, ns_inv_data['nodespace_invitation_code'])
+            ns_invitation = NodespaceInvitation.get_existing_invitation(PGDB_TEST, ns_inv_data['nodespace_invitation_code'])
             
             for field_name in NodespaceInvitation.FIELD_NAMES:
                 if field_name not in ['creation_date']:
-                    assert ns_inv_data[field_name] == vars(ns_invite)[field_name]
+                    assert ns_inv_data[field_name] == vars(ns_invitation)[field_name]
             
             decision_date_lb = DateTimeUtil.datetime_now_utc_aware()
-            ns_invite.create_user_and_accept_invitation(DB_TUPLE_PT_NM, ns_inv_data['invitee_username'], ns_inv_data['invitee_password'], 
+            ns_invitation.create_user_and_accept_invitation(DB_TUPLE_PT_NM, ns_inv_data['invitee_username'], ns_inv_data['invitee_password'], 
                                                         ns_inv_data['invitee_user_statement'])
-            assert ns_invite.was_accepted == True
-            assert decision_date_lb <= ns_invite.decision_date <= DateTimeUtil.datetime_now_utc_aware()
+            assert ns_invitation.was_accepted == True
+            assert decision_date_lb <= ns_invitation.decision_date <= DateTimeUtil.datetime_now_utc_aware()
             
             new_user = User.get_existing_user_by_email(PGDB_TEST, ns_inv_data['invitee_email_addr'])
-            assert new_user.user_id == ns_invite.user_id
+            assert new_user.user_id == ns_invitation.user_id
             assert new_user.check_password(ns_inv_data['invitee_password']) == True
     
     def decline_test(self):
@@ -308,14 +308,14 @@ class NodespaceInvitation_tests(object):
         ns_inv_data['creator'] = admin_user.user_id
 
         with AutoRollbackTransaction() as test_trans:
-            ns_invite = NodespaceInvitation.create_new_invitation(PGDB_TEST, ns_inv_data['nodespace_invitation_code'], ns_inv_data['invitee_email_addr'], ns_inv_data['nodespace_id'], 
+            ns_invitation = NodespaceInvitation.create_new_invitation(PGDB_TEST, ns_inv_data['nodespace_invitation_code'], ns_inv_data['invitee_email_addr'], ns_inv_data['nodespace_id'], 
                             ns_inv_data['initial_nodespace_privileges'], ns_inv_data['invitation_msg'], ns_inv_data['creator'])
             
             decision_date_lb = DateTimeUtil.datetime_now_utc_aware()
-            ns_invite.decline_invitation(PGDB_TEST)
-            ns_invite = NodespaceInvitation.get_existing_invitation(PGDB_TEST, ns_inv_data['nodespace_invitation_code'])
-            assert ns_invite.was_accepted == False
-            assert decision_date_lb <= ns_invite.decision_date <= DateTimeUtil.datetime_now_utc_aware()
+            ns_invitation.decline_invitation(PGDB_TEST)
+            ns_invitation = NodespaceInvitation.get_existing_invitation(PGDB_TEST, ns_inv_data['nodespace_invitation_code'])
+            assert ns_invitation.was_accepted == False
+            assert decision_date_lb <= ns_invitation.decision_date <= DateTimeUtil.datetime_now_utc_aware()
 
 
 
@@ -380,9 +380,9 @@ def NodespacePrivilegeChecker_tests():
     ns_inv_data['creator'] = admin_user.user_id
     
     with AutoRollbackTransaction() as test_trans:
-        ns_invite = NodespaceInvitation.create_new_invitation(PGDB_TEST, ns_inv_data['nodespace_invitation_code'], ns_inv_data['invitee_email_addr'], ns_inv_data['nodespace_id'], 
+        ns_invitation = NodespaceInvitation.create_new_invitation(PGDB_TEST, ns_inv_data['nodespace_invitation_code'], ns_inv_data['invitee_email_addr'], ns_inv_data['nodespace_id'], 
                                                             ns_inv_data['initial_nodespace_privileges'], ns_inv_data['invitation_msg'], ns_inv_data['creator'])
-        new_user = ns_invite.create_user_and_accept_invitation(DB_TUPLE_PT_NM, ns_inv_data['invitee_username'], ns_inv_data['invitee_password'], ns_inv_data['invitee_user_statement'])
+        new_user = ns_invitation.create_user_and_accept_invitation(DB_TUPLE_PT_NM, ns_inv_data['invitee_username'], ns_inv_data['invitee_password'], ns_inv_data['invitee_user_statement'])
         assert not NodespacePrivilegeChecker.is_allowed_to_do(DB_TUPLE_PT_NM, NodespacePrivilegeChecker.ALTER_NODESPACE_ACCESS_ACTION, test_ns, new_user, False)
 
 def MetaspaceSession_tests():

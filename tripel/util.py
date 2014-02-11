@@ -19,6 +19,12 @@ class DateTimeUtil(object):
         return datetime.now(pytz.utc)
 
 
+def empty_str_to_none(str):
+    if str is not None and len(str) == 0:
+        return None
+    else:
+        return str
+
 def generate_random_url_safe_string(string_len):
     # ripped off from http://stackoverflow.com/questions/785058/random-strings-in-python-2-6-is-this-ok
     return base64.urlsafe_b64encode(os.urandom(string_len))[0:string_len]
@@ -52,9 +58,6 @@ def init_web_config_mail_params():
     web.config.smtp_password = get_file_contents(params.SMTP_PASS_FILENAME)
 
 def sendmail(from_addr, to_addr, subject, message, headers=None, **kw):
-    '''
-    you probably want to use the asynchronous version (async_sendmail)
-    '''
     try:
         web.utils.sendmail(from_addr, to_addr, subject, message, headers=headers, **kw)
         return True

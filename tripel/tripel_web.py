@@ -33,12 +33,6 @@ MSGS = messages.Messages
 util.init_web_config_mail_params()
 
 
-def empty_str_to_none(str):
-    if str is not None and len(str) == 0:
-        return None
-    else:
-        return str
-
 def build_url_path(subpath):
     return util.build_url_path(params.APP_DEPLOYMENT_PATH, subpath)
 
@@ -598,7 +592,7 @@ class user_invitation_create(BasePage):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         cls.is_allowed_to_use(None, user)
         
-        invitee_email_addr = empty_str_to_none(web.input().get('invitee_email_addr'))
+        invitee_email_addr = util.empty_str_to_none(web.input().get('invitee_email_addr'))
         metaspace_privileges = tc.MetaspacePrivilegeSet.create_from_list_of_strings(web.input(metaspace_privileges=[]).get('metaspace_privileges'))
         invitation_msg = web.input().get('invitation_msg')
         try:
@@ -694,7 +688,7 @@ class user_invitation_decide(BasePage):
             ms_inv.decline_invitation(PGDB)
             return cls.wrap_content(MSGS.lookup('ms_inv_declined_ack', {'inv_code': ms_inv_code}))
         
-        username = empty_str_to_none(web.input().get('username'))
+        username = util.empty_str_to_none(web.input().get('username'))
         user_statement = web.input().get('user_statement')
         cleartext_password_1 = web.input().get('cleartext_password_1')
         cleartext_password_2 = web.input().get('cleartext_password_2')
@@ -763,7 +757,7 @@ class nodespace_invitation_create(BasePage):
         
         cls.is_allowed_to_use(nodespace, user)
         
-        invitee_email_addr = empty_str_to_none(web.input().get('invitee_email_addr'))
+        invitee_email_addr = util.empty_str_to_none(web.input().get('invitee_email_addr'))
         nodespace_privileges = tc.NodespacePrivilegeSet.create_from_list_of_strings(web.input(nodespace_privileges=[]).get('nodespace_privileges'))
         invitee_user = tc.User.get_existing_user_by_email(PGDB, invitee_email_addr)
         if invitee_user is None:
@@ -851,7 +845,7 @@ class nodespace_invitation_decide(BasePage):
         if invitee_user is not None:
             ns_inv.accept_invitation(PGDB, invitee_user.user_id)
         else:
-            invitee_user = ns_inv.create_user_and_accept_invitation(DB_TUPLE, empty_str_to_none(web.input().get('username')), cleartext_password_1, web.input().get('user_statement'))
+            invitee_user = ns_inv.create_user_and_accept_invitation(DB_TUPLE, util.empty_str_to_none(web.input().get('username')), cleartext_password_1, web.input().get('user_statement'))
         
         nodespace_access_entry = nodespace.get_nodespace_access_for_user(PGDB, invitee_user.user_id)
         
@@ -990,7 +984,7 @@ class user_info_edit(BasePage):
         
         encountered_update_error = False
         try:
-            edited_user.set_and_save_user_info(PGDB, empty_str_to_none(web.input().get('username')), web.input().get('email_addr'), web.input().get('user_statement'), editing_user.user_id)
+            edited_user.set_and_save_user_info(PGDB, util.empty_str_to_none(web.input().get('username')), web.input().get('email_addr'), web.input().get('user_statement'), editing_user.user_id)
         except:
             encountered_update_error = True
         

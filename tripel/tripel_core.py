@@ -6,7 +6,6 @@ TODO:
   * test transactionality of compound operations
   * get coverage to 100%
 * break things out into more specialized modules
-* make sure usage of invite/invitation is consistent, so that the former is always used as a verb and the latter as a noun
 """
 
 import logging
@@ -1085,8 +1084,8 @@ class User(PgPersistent):
         query_results = pgdb.query(query_sql, vars=where_clause_vars)
         return query_results
     
-    #TODO: need a way to list invites from a given user.
-    #TODO: need a way to revoke invites from a given user.
+    #TODO: need a way to list invitations from a given user.
+    #TODO: need a way to revoke invitations from a given user.
 
 
 class PrivilegeSet(object):
@@ -1373,8 +1372,8 @@ class NodespacePrivilegeChecker(PrivilegeChecker):
 
 
 class Invitation(object):
-    MIN_INVITE_CODE_LEN = 20
-    DEFAULT_INVITE_CODE_LEN = MIN_INVITE_CODE_LEN
+    MIN_INVITATION_CODE_LEN = 20
+    DEFAULT_INVITATION_CODE_LEN = MIN_INVITATION_CODE_LEN
 
     @classmethod
     def _new_invitation_obj_instance(cls, invitee_email_addr, invitation_msg, creator):
@@ -1390,17 +1389,17 @@ class Invitation(object):
     @classmethod
     def validate_invitation_code_format(cls, invitation_code):
         if not cls.is_valid_invitation_code(invitation_code):
-            raise Exception('Invite code must be at least %i characters (alphanumeric, hyphen, and underscore only)' % Invitation.MIN_INVITE_CODE_LEN)
+            raise Exception('Invitation code must be at least %i characters (alphanumeric, hyphen, and underscore only)' % Invitation.MIN_INVITATION_CODE_LEN)
 
     @staticmethod
     def is_valid_invitation_code(invitation_code):
-        return len(invitation_code) >= Invitation.MIN_INVITE_CODE_LEN and util.is_hyphenated_alphanumeric_string(invitation_code)
+        return len(invitation_code) >= Invitation.MIN_INVITATION_CODE_LEN and util.is_hyphenated_alphanumeric_string(invitation_code)
     
     @staticmethod
-    def generate_random_invitation_code(code_len=DEFAULT_INVITE_CODE_LEN):
+    def generate_random_invitation_code(code_len=DEFAULT_INVITATION_CODE_LEN):
         return util.generate_random_url_safe_string(code_len)
     
-    #TODO: need a way to revoke invites
+    #TODO: need a way to revoke invitations
 
 class MetaspaceInvitation(Invitation, PgPersistent):
     TABLE_NAME = '%s.metaspace_invitations' % SCHEMA_NAME
@@ -1629,7 +1628,7 @@ class NodespaceInvitation(Invitation, PgPersistent):
     
     def create_user_and_accept_invitation(self, db_tuple, username, cleartext_password, user_statement):
         pgdb, neodb = db_tuple
-        #first, create a metaspace invite behind the scenes and accept that
+        #first, create a metaspace invitation behind the scenes and accept that
         ms_invitation = MetaspaceInvitation.create_new_invitation(pgdb, None, self.invitee_email_addr, None, self.invitation_msg, self.creator)
         user = ms_invitation.create_user_and_accept_invitation(db_tuple, username, cleartext_password, user_statement)
         self.accept_invitation(pgdb, user.user_id)
