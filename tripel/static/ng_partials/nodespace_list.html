@@ -1,8 +1,8 @@
 <div class="tab-pane active">
-    <table class="table-bordered table-condensed">
+    <table class="table table-bordered table-condensed">
         <tr><th><span ng-i18next="nodespace_name_col_hdr"></span></th><th><span ng-i18next="nodespace_description_col_hdr"></span></th></tr>
         <tbody>
-            <tr ng-repeat="nodespace in nodespaceListData.nodespaceList">
+            <tr ng-repeat="nodespace in nodespaceListData.nodespaceList" ng-show="nodespaceListData.selectedNodespaceId == null || nodespaceListData.selectedNodespaceId == nodespace.nodespace_id">
                 <td><a href="{{urlBase + nodespace.nodespace_id}}">{{nodespace.nodespace_name}}</a> &nbsp;</td>
                 <td>{{nodespace.nodespace_description}} &nbsp;</td>
             </tr>

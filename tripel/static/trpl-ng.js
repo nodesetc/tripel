@@ -1,12 +1,17 @@
 var trplApp = angular.module('trpl', ['ngResource', 'ui.state', 'jm.i18next']);
 
+
 i18n.init({fallbackLng: 'en-US', 
 			resStore: window.trplLocaleMsgs, 
 			dynamicLoad: false});
 
+
 //TODO: should avoid also defining rootPath here, since it's already defined in python
 trplApp.value('trplConstants', {rootPath: '/tripel',
 								dateFormat: 'yyyy-MM-dd HH:mm:ss Z'});
+
+trplApp.value('trplEvents', {selectNodespace: 'selectNodespace'});
+
 
 trplApp.config(
 	function($stateProvider, $routeProvider, $urlRouterProvider, $i18nextProvider) {
@@ -37,7 +42,7 @@ trplApp.config(
 				})
 			.state('appView.metaspaceCmds.nodespaceListAll.selectNodespace', {
 					url: '/:nodespaceId',
-					controller: '',
+					controller: 'SelectNodespaceCtrl',
 					templateUrl: 'static/ng_partials/nodespace_view.html'
 				})
 			.state('appView.metaspaceCmds.userListAll', {
@@ -66,7 +71,7 @@ trplApp.config(
 				})
 			.state('appView.nodespaceListAccessible.selectNodespace', {
 					url: '/:nodespaceId',
-					controller: '',
+					controller: 'SelectNodespaceCtrl',
 					templateUrl: 'static/ng_partials/nodespace_view.html'
 				})
 			.state('appView.nodespaceListAccessible.selectNodespace.browseNodes', {
@@ -317,26 +322,43 @@ trplApp.controller('SelectPaneCtrl',
 );
 
 trplApp.controller('NodespaceListAllCtrl',
-	function($scope, trplBackendSvc) {
+	function($scope, trplBackendSvc, trplEvents) {
 		$scope.urlBase = '#/app_view/metaspace_cmds/nodespaces_all/';
 		
-		var nodespaceListData = $scope.nodespaceListData = {};
-		var callbackFn = function(newNSList) {
-			nodespaceListData.nodespaceList = newNSList;
+		var nodespaceListData = $scope.nodespaceListData = {selectedNodespaceId: null, nodespaceList: null};
+		var callbackFn = function(nodespaceList) {
+			nodespaceListData.nodespaceList = nodespaceList;
 		};
 		trplBackendSvc.getAllNodespaces(callbackFn);
+		
+		var selectNodespaceFn = function(e, selectedNodespaceId) {
+			nodespaceListData.selectedNodespaceId = selectedNodespaceId;
+		};
+		$scope.$on(trplEvents.selectNodespace, selectNodespaceFn);
 	}
 );
 
+//TODO: more code repetition to fix
 trplApp.controller('NodespaceListAccessibleCtrl',
-	function($scope, trplBackendSvc) {
+	function($scope, trplBackendSvc, trplEvents) {
 		$scope.urlBase = '#/app_view/nodespaces_accessible/';
 		
-		var nodespaceListData = $scope.nodespaceListData = {};
-		var callbackFn = function(newNSList) {
-			nodespaceListData.nodespaceList = newNSList;
+		var nodespaceListData = $scope.nodespaceListData = {selectedNodespaceId: null, nodespaceList: null};
+		var callbackFn = function(nodespaceList) {
+			nodespaceListData.nodespaceList = nodespaceList;
 		};
 		trplBackendSvc.getAccessibleNodespaces(callbackFn);
+		
+		var selectNodespaceFn = function(e, selectedNodespaceId) {
+			nodespaceListData.selectedNodespaceId = selectedNodespaceId;
+		};
+		$scope.$on(trplEvents.selectNodespace, selectNodespaceFn);
+	}
+);
+
+trplApp.controller('SelectNodespaceCtrl',
+	function($scope, $stateParams, trplEvents) {
+		$scope.$emit(trplEvents.selectNodespace, $stateParams.nodespaceId);
 	}
 );
 
