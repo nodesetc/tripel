@@ -53,8 +53,8 @@ trplApp.config(
 				})
 			.state('appView.metaspaceCmds.nodespaceListAll.selectNodespace.userList', {
 					url: '/user_list_nodespace',
-					controller: '',
-					templateUrl: 'static/ng_partials/user_list_nodespace_msadmin.html'
+					controller: 'UserListNodespaceAdminCtrl',
+					templateUrl: 'static/ng_partials/user_list_nodespace.html'
 				})
 			.state('appView.metaspaceCmds.nodespaceListAll.selectNodespace.nodespaceGrantAccess', {
 					url: '/nodespace_grant_access',
@@ -106,8 +106,18 @@ trplApp.config(
 					templateUrl: 'static/ng_partials/nodespace_edit.html'
 				})
 			.state('appView.nodespaceListAccessible.selectNodespace.userList', {
+					/*warning:  supposedly we shouldn't be able to get $stateParams.nodespaceId in this state, since 
+					 that param is in the parent state.  but that param seems accessible from this state.
+					 see:  https://github.com/angular-ui/ui-router/wiki/URL-Routing#wiki-important-stateparams-gotcha
+					*/
 					url: '/user_list_nodespace',
+					controller: 'UserListNodespaceCtrl',
 					templateUrl: 'static/ng_partials/user_list_nodespace.html'
+				})
+			.state('appView.nodespaceListAccessible.selectNodespace.userList.selectUser', {
+					url: '/:userId',
+					controller: 'SelectUserCtrl',
+					templateUrl: 'static/ng_partials/user_view_nodespace.html'
 				})
 			.state('appView.nodespaceListAccessible.selectNodespace.nodespaceInvitationCreate', {
 					url: '/nodespace_invitation_create',
@@ -209,6 +219,10 @@ trplApp.service('trplBackendSvc',
 		
 		this.getAllUsers = function(callbackFn) {
 			return this.getObjList(callbackFn, '/user_list_all', {});
+		};
+		
+		this.getNodespaceUsers = function(callbackFn, nodespaceId) {
+			return this.getObjList(callbackFn, '/user_list_nodespace', {nodespace_id: nodespaceId});
 		};
 		
 		this.getNodespaceViewInfo = function(callbackFn, nodespaceId) {
@@ -403,9 +417,26 @@ trplApp.controller('SelectNodespaceCtrl',
 	}
 );
 
-trplApp.controller('UserListAllCtrl',
-	function($scope, $stateParams, $filter, trplBackendSvc, trplConstants, trplEvents) {
-		$scope.urlBase = '#/app_view/metaspace_cmds/users';
+var userListAllCtrlName = 'UserListAllCtrl';
+var userListNodespaceCtrlName = 'UserListNodespaceCtrl';
+var userListNodespaceAdminCtrlName = 'UserListNodespaceAdminCtrl';
+
+function getUserListCtrlFn(controllerName) {
+	return function($scope, $stateParams, $filter, trplBackendSvc, trplConstants, trplEvents) {
+		switch(controllerName) {
+			case userListAllCtrlName:
+				$scope.urlBase = '#/app_view/metaspace_cmds/users';
+				break;
+			case userListNodespaceCtrlName:
+				$scope.urlBase = '#/app_view/nodespaces_accessible/'+$stateParams.nodespaceId+'/user_list_nodespace';
+				break;
+			case userListNodespaceAdminCtrlName:
+				$scope.urlBase = '#/app_view/metaspace_cmds/nodespaces_all/'+$stateParams.nodespaceId+'/user_list_nodespace';
+				break;
+			default:
+				$scope.urlBase = '#/';
+		}
+		
 		$scope.dateFormat = trplConstants.dateFormat;
 		
 		var userListData = $scope.userListData = {selectedRowId: null, rowList: null};
@@ -425,15 +456,27 @@ trplApp.controller('UserListAllCtrl',
 							});
 							
 		};
-		trplBackendSvc.getAllUsers(callbackFn);
+		switch (controllerName) {
+			case userListAllCtrlName:
+				trplBackendSvc.getAllUsers(callbackFn);
+				break;
+			case userListNodespaceCtrlName:
+			case userListNodespaceAdminCtrlName:
+				trplBackendSvc.getNodespaceUsers(callbackFn, $stateParams.nodespaceId);
+				break;
+		}
 		
 		var selectUserFn = getSelectRowFn(userListData);
 		$scope.$on(trplEvents.selectUser, selectUserFn);
 		
 		var unselectUserFn = getUnselectRowFn(userListData);
 		$scope.unselectUser = unselectUserFn;
-	}
-);
+	};
+}
+
+trplApp.controller('UserListAllCtrl', getUserListCtrlFn('UserListAllCtrl'));
+trplApp.controller('UserListNodespaceCtrl', getUserListCtrlFn('UserListNodespaceCtrl'));
+trplApp.controller('UserListNodespaceAdminCtrl', getUserListCtrlFn('UserListNodespaceAdminCtrl'));
 
 trplApp.controller('SelectUserCtrl',
 	function($scope, $stateParams, trplEvents) {

@@ -1166,19 +1166,30 @@ class user_list_nodespace(BasePage, ListTablePage):
         return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.ALTER_NODESPACE_ACCESS_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
-    def render_page(cls, ms_session):
+    def _render_page_helper(cls, ms_session):
         nodespace_id = web.input().get('nodespace_id')
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, nodespace_id) if nodespace_id is not None else None
         cls.is_allowed_to_use(nodespace, user)
         
         user_list = tc.User.get_user_and_access_info_by_nodespace_id(PGDB, nodespace_id)
+        return (user, nodespace, user_list)
+    
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        user, nodespace, user_list = cls._render_page_helper(ms_session)
+        
         extra_display_info = {'nodespace': nodespace}
         should_have_ns_access_edit_links = nodespace_access_edit_form.is_allowed_to_use(nodespace, user, False)
         for user_row in user_list:
             user_row['should_have_ns_access_edit_link'] = should_have_ns_access_edit_links
         
         return cls.wrap_content(cls.basic_table_content(user_list), user=user, extra_display_info=extra_display_info)
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        user, nodespace, user_list = cls._render_page_helper(ms_session)
+        return get_json_string(user_list)
 
 class user_list_all(BasePage, ListTablePage):
     @classmethod

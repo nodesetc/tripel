@@ -1,1 +1,30 @@
+<div class="tab-pane active">
+    <div ng-show="userListData.selectedRowId != null">
+        <a href="{{urlBase}}" ng-click="unselectUser()">&#10218; <span ng-i18next="users_show_all_label"></span></a>
+        <br><br>
+    </div>
+    
+    <table class="table table-bordered table-condensed">
+        <tr>
+            <th><span ng-i18next>username_col_hdr</span></th>
+            <th><span ng-i18next>email_addr_label</span></th>
+            <th><span ng-i18next>user_statement_col_hdr</span></th>
+            <th><span ng-i18next>nodespace_privileges_col_hdr</span></th>
+            <th><span ng-i18next>is_enabled_for_ns_col_hdr</span></th>
+            <th><span ng-i18next>is_enabled_for_ms_col_hdr</span></th>
+        </tr>
+        
+        <tbody>
+            <tr ng-repeat="user in userListData.rowList" ng-show="userListData.selectedRowId == null || userListData.selectedRowId == user.user_id">
+                <td><a href="{{urlBase + '/' + user.user_id}}">{{user.username}}</a>&nbsp;</td>
+                <td>{{user.email_addr}}&nbsp;</td>
+                <td>{{user.user_statement}}&nbsp;</td>
+                <td>{{user.nodespace_privileges}}&nbsp;</td>
+                <td>{{user.is_enabled_for_ns}}&nbsp;</td>
+                <td>{{user.is_enabled_for_ms}}&nbsp;</td>
+            </tr>
+        </tbody>
+    </table>
+    <div ui-view></div>
+</div>
 

@@ -1081,7 +1081,7 @@ class User(PgPersistent):
                     where u.user_id = nsam.user_id 
                     and nsam.nodespace_id = $nodespace_id;''' % {'user_tbl': cls.TABLE_NAME, 'ns_tbl': NodespaceAccessEntry.TABLE_NAME}
         where_clause_vars = {'nodespace_id': nodespace_id}
-        query_results = pgdb.query(query_sql, vars=where_clause_vars)
+        query_results = list(pgdb.query(query_sql, vars=where_clause_vars))
         return query_results
     
     #TODO: need a way to list invitations from a given user.
@@ -1559,7 +1559,7 @@ class Nodespace(PgPersistent):
                     where user_id = $user_id 
                     and nsam.nodespace_id = ns.nodespace_id;''' % {'ns_acc_map_tbl': NodespaceAccessEntry.TABLE_NAME, 'ns_tbl': cls.TABLE_NAME}
         where_clause_vars = {'user_id': user_id}
-        query_results = pgdb.query(query_sql, vars=where_clause_vars)
+        query_results = list(pgdb.query(query_sql, vars=where_clause_vars))
         return cls._query_results_to_obj_list(query_results)
     
     @classmethod
