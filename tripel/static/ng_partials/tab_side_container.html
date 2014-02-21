@@ -1,14 +1,16 @@
 <div class="tabbable">
-    <div class="span3">
-        <div class="pa-sidebar well well-small">
-            <ul class="nav nav-list">
-                <li ng-repeat="pane in panes | filter:{isUsable:true}" ng-class="{active:pane.isSelected}">
-                    <a href="{{pane.url}}" ng-click="select(pane)">{{pane.title}}</a>
-                </li>
-            </ul>
+    <div class="row-fluid">
+        <div class="span2">
+            <div class="pa-sidebar well well-small">
+                <ul class="nav nav-list">
+                    <li ng-repeat="pane in panes | filter:{isUsable:true}" ng-class="{active:pane.isSelected}">
+                        <a href="{{pane.url}}" ng-click="select(pane)">{{pane.title}}</a>
+                    </li>
+                </ul>
+            </div>
         </div>
-    </div>
-    <div class="span9">
-        <div ui-view></div>
+        <div class="span10">
+            <div ui-view></div>
+        </div>
     </div>
 </div>

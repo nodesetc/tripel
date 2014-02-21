@@ -10,7 +10,8 @@ i18n.init({fallbackLng: 'en-US',
 trplApp.value('trplConstants', {rootPath: '/tripel',
 								dateFormat: 'yyyy-MM-dd HH:mm:ss Z'});
 
-trplApp.value('trplEvents', {selectNodespace: 'selectNodespace'});
+trplApp.value('trplEvents', {selectNodespace: 'selectNodespace',
+								selectUser: 'selectUser'});
 
 
 trplApp.config(
@@ -43,12 +44,32 @@ trplApp.config(
 			.state('appView.metaspaceCmds.nodespaceListAll.selectNodespace', {
 					url: '/:nodespaceId',
 					controller: 'SelectNodespaceCtrl',
-					templateUrl: 'static/ng_partials/nodespace_view.html'
+					templateUrl: 'static/ng_partials/nodespace_view_msadmin.html'
+				})
+			.state('appView.metaspaceCmds.nodespaceListAll.selectNodespace.nodespaceInfoEdit', {
+					url: '/nodespace_info_edit',
+					controller: 'EditNodespaceCtrl',
+					templateUrl: 'static/ng_partials/nodespace_edit.html'
+				})
+			.state('appView.metaspaceCmds.nodespaceListAll.selectNodespace.userList', {
+					url: '/user_list_nodespace',
+					controller: '',
+					templateUrl: 'static/ng_partials/user_list_nodespace_msadmin.html'
+				})
+			.state('appView.metaspaceCmds.nodespaceListAll.selectNodespace.nodespaceGrantAccess', {
+					url: '/nodespace_grant_access',
+					controller: '',
+					templateUrl: 'static/ng_partials/nodespace_grant_access.html'
 				})
 			.state('appView.metaspaceCmds.userListAll', {
 					url: '/users',
 					controller: 'UserListAllCtrl',
 					templateUrl: 'static/ng_partials/user_list_metaspace.html'
+				})
+			.state('appView.metaspaceCmds.userListAll.selectUser', {
+					url: '/:userId',
+					controller: 'SelectUserCtrl',
+					templateUrl: 'static/ng_partials/user_view_msadmin.html'
 				})
 			.state('appView.manageLoggedInUser', {
 					url: '/manage_logged_in_user',
@@ -298,6 +319,23 @@ trplApp.service('paneListSvc',
 					trplBackendSvc.getNodespaceViewInfo(callbackFn, $stateParams.nodespaceId);
 					
 					return panes;
+				
+				case 'nodespace-view-admin':
+					var urlBase = '#/app_view/metaspace_cmds/nodespaces_all/' + $stateParams.nodespaceId + '/';
+					var panes = [{title: i18n.t('nodespace_edit_form_page_name'), url: urlBase+'nodespace_info_edit', isSelected: false, isUsable: false},
+								{title: i18n.t('nodespace_user_list_tab_label'), url: urlBase+'user_list_nodespace', isSelected: false, isUsable: false},
+								{title: i18n.t('nodespace_grant_access_tab_label'), url: urlBase+'nodespace_grant_access', isSelected: false, isUsable: false}];
+					
+					var callbackFn = function(nodespaceViewResult) {
+						var nodespaceViewCmdPerms = nodespaceViewResult.perms_for_user;
+						panes[0].isUsable = nodespaceViewCmdPerms['is_allowed_to_edit_nodespace'];
+						panes[1].isUsable = nodespaceViewCmdPerms['is_allowed_to_list_nodespace_users'];
+						panes[2].isUsable = nodespaceViewCmdPerms['is_allowed_to_invite_nodespace_users'];
+					}
+					
+					trplBackendSvc.getNodespaceViewInfo(callbackFn, $stateParams.nodespaceId);
+					
+					return panes;
 					
 				default:
 					return [];
@@ -321,44 +359,85 @@ trplApp.controller('SelectPaneCtrl',
 	}
 );
 
-trplApp.controller('NodespaceListAllCtrl',
-	function($scope, trplBackendSvc, trplEvents) {
-		$scope.urlBase = '#/app_view/metaspace_cmds/nodespaces_all/';
-		
-		var nodespaceListData = $scope.nodespaceListData = {selectedNodespaceId: null, nodespaceList: null};
-		var callbackFn = function(nodespaceList) {
-			nodespaceListData.nodespaceList = nodespaceList;
-		};
-		trplBackendSvc.getAllNodespaces(callbackFn);
-		
-		var selectNodespaceFn = function(e, selectedNodespaceId) {
-			nodespaceListData.selectedNodespaceId = selectedNodespaceId;
-		};
-		$scope.$on(trplEvents.selectNodespace, selectNodespaceFn);
-	}
-);
+var getTableListCallbackFn = function(tableListDataObj) {
+	return function(objList) {
+		tableListDataObj.rowList = objList;
+	};
+};
 
-//TODO: more code repetition to fix
-trplApp.controller('NodespaceListAccessibleCtrl',
-	function($scope, trplBackendSvc, trplEvents) {
-		$scope.urlBase = '#/app_view/nodespaces_accessible/';
-		
-		var nodespaceListData = $scope.nodespaceListData = {selectedNodespaceId: null, nodespaceList: null};
-		var callbackFn = function(nodespaceList) {
-			nodespaceListData.nodespaceList = nodespaceList;
-		};
-		trplBackendSvc.getAccessibleNodespaces(callbackFn);
-		
-		var selectNodespaceFn = function(e, selectedNodespaceId) {
-			nodespaceListData.selectedNodespaceId = selectedNodespaceId;
-		};
-		$scope.$on(trplEvents.selectNodespace, selectNodespaceFn);
+var getSelectRowFn = function(tableListDataObj) {
+	return function(eventObj, selectedRowId) {
+		tableListDataObj.selectedRowId = selectedRowId;
+	};
+};
+
+var getUnselectRowFn = function(tableListDataObj) {
+	return function() {
+		tableListDataObj.selectedRowId = null;
 	}
-);
+};
+
+var getNodespaceListCtrlFn = function(urlBase, nodespaceListFnName) {
+	//note that the function returned here assumes it'll get its params injected by angular upon invocation.  it's intended to be used to build controllers.
+	return function($scope, trplBackendSvc, trplEvents) {
+		$scope.urlBase = urlBase;
+		
+		var nodespaceListData = $scope.nodespaceListData = {selectedRowId: null, rowList: null};
+		var callbackFn = getTableListCallbackFn(nodespaceListData);
+		trplBackendSvc[nodespaceListFnName](callbackFn);
+		
+		var selectNodespaceFn = getSelectRowFn(nodespaceListData);
+		$scope.$on(trplEvents.selectNodespace, selectNodespaceFn);
+		
+		var unselectNodespaceFn = getUnselectRowFn(nodespaceListData);
+		$scope.unselectNodespace = unselectNodespaceFn;
+	};
+};
+
+trplApp.controller('NodespaceListAllCtrl', getNodespaceListCtrlFn('#/app_view/metaspace_cmds/nodespaces_all', 'getAllNodespaces'));
+trplApp.controller('NodespaceListAccessibleCtrl', getNodespaceListCtrlFn('#/app_view/nodespaces_accessible', 'getAccessibleNodespaces'));
 
 trplApp.controller('SelectNodespaceCtrl',
 	function($scope, $stateParams, trplEvents) {
 		$scope.$emit(trplEvents.selectNodespace, $stateParams.nodespaceId);
+	}
+);
+
+trplApp.controller('UserListAllCtrl',
+	function($scope, $stateParams, $filter, trplBackendSvc, trplConstants, trplEvents) {
+		$scope.urlBase = '#/app_view/metaspace_cmds/users';
+		$scope.dateFormat = trplConstants.dateFormat;
+		
+		var userListData = $scope.userListData = {selectedRowId: null, rowList: null};
+		var callbackFn = function(userList) {
+			userListData.rowList = userList;
+			
+			userListData.rowList.forEach(function(val, idx, arr) {
+								if(val.creation_date != null) {
+									val.creation_date = new Date(val.creation_date.replace(" ", "T"));
+									val.creation_date = $filter('date')(val.creation_date, trplConstants.dateFormat);
+								}
+								
+								if(val.modification_date != null) {
+									val.modification_date = new Date(val.modification_date.replace(" ", "T"));
+									val.modification_date = $filter('date')(val.modification_date, trplConstants.dateFormat);
+								}
+							});
+							
+		};
+		trplBackendSvc.getAllUsers(callbackFn);
+		
+		var selectUserFn = getSelectRowFn(userListData);
+		$scope.$on(trplEvents.selectUser, selectUserFn);
+		
+		var unselectUserFn = getUnselectRowFn(userListData);
+		$scope.unselectUser = unselectUserFn;
+	}
+);
+
+trplApp.controller('SelectUserCtrl',
+	function($scope, $stateParams, trplEvents) {
+		$scope.$emit(trplEvents.selectUser, $stateParams.userId);
 	}
 );
 
@@ -371,37 +450,6 @@ trplApp.controller('NodespaceBrowseCtrl',
 			nsGraph.load(nodespaceViewData.graphElements);
 		};
 		trplBackendSvc.getGraphElements(callbackFn, $stateParams.nodespaceId);
-	}
-);
-
-trplApp.controller('UserListAllCtrl',
-	function($scope, $stateParams, trplBackendSvc, trplConstants, $filter) {
-		$scope.urlBase = '#/app_view/metaspace_cmds/users/';
-		$scope.dateFormat = trplConstants.dateFormat;
-		
-		var userListData = $scope.userListData = [];
-		var callbackFn = function(userList) {
-			userListData.userList = userList;
-			
-			userList.forEach(function(val, idx, arr) {
-								//TODO: get rid of this hack:  not sure why empty date fields come back as 'None' (the 
-								// fields in the json objects are null in the response from tripel_web).
-								if (val.creation_date === 'None') {
-									val.creation_date = null;
-								} else {
-									val.creation_date = new Date(val.creation_date.replace(" ", "T"));
-									val.creation_date = $filter('date')(val.creation_date, trplConstants.dateFormat);
-								}
-								if(val.modification_date === 'None') {
-									val.modification_date = null;
-								} else {
-									val.modification_date = new Date(val.modification_date.replace(" ", "T"));
-									val.modification_date = $filter('date')(val.modification_date, trplConstants.dateFormat);
-								}
-							});
-							
-		};
-		trplBackendSvc.getAllUsers(callbackFn);
 	}
 );
 
@@ -493,7 +541,7 @@ trplApp.controller('CreateNodespaceCtrl',
 	}
 );
 
-//TODO:  obviously this needs centralization, because it's silly to have totally separate controllers for edit and create when so much of the code is the same
+//TODO:  obviously this and CreateNodespaceCtrl need some centralization, because it's silly to have totally separate controllers for edit and create when so much of the code is the same
 trplApp.controller('EditNodespaceCtrl',
 	function($scope, $stateParams, trplBackendSvc) {
 		var nodespaceInfo = $scope.nodespaceInfo = {};

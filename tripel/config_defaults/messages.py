@@ -82,6 +82,10 @@ class Messages(object):
                 'metaspace_access_edit_form_smry': 'edit metaspace access for: %(username)s',
                 'nodespace_access_edit_form_smry': 'edit nodespace access to %(nodespace_name)s for %(username)s',
                 'metaspace_command_list_smry': 'metaspace commands',
+                'nodespace_info_edit_error_msg': 'error editing nodespace information',
+                'nodespace_info_edit_success_msg': 'nodespace information updated successfully',
+                'nodespace_create_error_msg': 'error creating nodespace',
+                'nodespace_create_success_msg': 'nodespace created successfully',
                 
                 'email_addr_label': 'email address',
                 'username_label': 'username',
@@ -188,7 +192,11 @@ class Messages(object):
                 'update_ns_privs_submit_btn': 'update nodespace privileges',
                 
                 'nodespace_user_list_tab_label': 'list users in nodespace',
-                'nodespace_browse_tab_label': 'browse nodespace'
+                'nodespace_browse_tab_label': 'browse nodespace',
+                
+                'nodespace_show_all_label': 'back to nodespace list',
+                'users_show_all_label': 'back to user list',
+                'nodespace_grant_access_tab_label': 'add user to nodespace'
             }
         }
     }

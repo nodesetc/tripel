@@ -39,6 +39,16 @@ def build_url_path(subpath):
 def build_url(path):
     return util.build_url(params.SERVER_HOSTNAME, path)
 
+def get_json_string(obj):
+    class JSONEncoderTripelDefault(json.JSONEncoder):
+        def default(self, obj):
+            if isinstance(obj, util.datetime) or isinstance(obj, tc.PrivilegeSet):
+                return str(obj)
+            else:
+                return super(JSONEncoderTripelDefault, self).default(obj)
+    
+    return json.dumps(obj, indent=2, cls=JSONEncoderTripelDefault)
+
 def kill_session_and_cookie(pgdb, ms_session):
     if ms_session is not None:
         ms_session.kill_session(pgdb)
@@ -327,9 +337,9 @@ class auth_status(BasePage, ListTablePage):
         
         if has_valid_session:
             for col_key in cls._get_col_keys([ms_session]):
-                session_dict[col_key] = str(getattr(ms_session, col_key))
+                session_dict[col_key] = getattr(ms_session, col_key)
         
-        return json.dumps(session_dict, indent=2)
+        return get_json_string(session_dict)
 
 class NodespaceForm(object):
     @classmethod
@@ -362,7 +372,7 @@ class nodespace_create(BasePage):
     def render_page_is_allowed_to_use(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         ret_val = {'is_allowed_to_use': cls.is_allowed_to_use(None, user, should_raise_insufficient_priv_ex=False)}
-        return json.dumps(ret_val)
+        return get_json_string(ret_val)
     
     @classmethod
     def _render_page_helper(cls, ms_session):
@@ -392,9 +402,9 @@ class nodespace_create(BasePage):
         new_nodespace = cls._render_page_helper(ms_session)
         
         if new_nodespace is not None:
-            return json.dumps({'encountered_create_error': False, 'nodespace_id': new_nodespace.nodespace_id}, 2)
+            return get_json_string({'encountered_create_error': False, 'nodespace_id': new_nodespace.nodespace_id})
         else:
-            return json.dumps({'encountered_create_error': True}, 2)
+            return get_json_string({'encountered_create_error': True})
 
 class nodespace_edit_form(BasePage, NodespaceForm):
     @classmethod
@@ -447,7 +457,7 @@ class nodespace_edit(BasePage):
     def render_page_json(cls, ms_session):
         nodespace = cls._render_page_helper(ms_session)
         encountered_update_error = False if nodespace is not None else True
-        return json.dumps({'encountered_update_error': encountered_update_error})
+        return get_json_string({'encountered_update_error': encountered_update_error})
 
 class nodespace_view(BasePage, ListTablePage):
     @classmethod
@@ -520,10 +530,10 @@ class nodespace_view(BasePage, ListTablePage):
         perms_for_user = cls._get_command_perms(user, nodespace)
         nodespace_info = {}
         for field_name in ['nodespace_name', 'nodespace_description', 'creator', 'creation_date', 'modifier', 'modification_date']:
-            nodespace_info[field_name] = str(getattr(nodespace, field_name))
+            nodespace_info[field_name] = getattr(nodespace, field_name)
         ret_val = {'perms_for_user': perms_for_user, 'nodespace_info': nodespace_info}
         
-        return json.dumps(ret_val, indent=2)
+        return get_json_string(ret_val)
 
 class PrivilegesEditForm(object):
     @classmethod
@@ -574,7 +584,7 @@ class user_invitation_create_form(BasePage, PrivilegesEditForm):
         cls.is_allowed_to_use(None, user)
         comparator = tc.MetaspacePrivilegeSet.comparator
         grantable_privileges = sorted(user.metaspace_privileges.get_grantable_privileges(), comparator)
-        return json.dumps({'grantable_privileges': grantable_privileges})
+        return get_json_string({'grantable_privileges': grantable_privileges})
 
 class user_invitation_create(BasePage):
     @classmethod
@@ -585,7 +595,7 @@ class user_invitation_create(BasePage):
     def render_page_is_allowed_to_use(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         ret_val = {'is_allowed_to_use': cls.is_allowed_to_use(None, user, should_raise_insufficient_priv_ex=False)}
-        return json.dumps(ret_val)
+        return get_json_string(ret_val)
     
     @classmethod
     def _render_page_helper(cls, ms_session):
@@ -621,7 +631,7 @@ class user_invitation_create(BasePage):
             encountered_create_error = False
         else:
             encountered_create_error = True
-        return json.dumps({'encountered_create_error': encountered_create_error, 'status_message': status_message}, indent=2)
+        return get_json_string({'encountered_create_error': encountered_create_error, 'status_message': status_message})
 
 class InvitationDecideForm(object):
     INV_ACCEPT_FORM = web.form.Form(
@@ -743,7 +753,7 @@ class nodespace_invitation_create_form(BasePage, PrivilegesEditForm):
     def render_page_json(cls, ms_session):
         user, nodespace = cls._render_page_helper(ms_session)
         grantable_privileges = cls._get_grantable_privileges(nodespace, user)
-        return json.dumps({'grantable_privileges': grantable_privileges})
+        return get_json_string({'grantable_privileges': grantable_privileges})
 
 class nodespace_invitation_create(BasePage):
     @classmethod
@@ -787,7 +797,7 @@ class nodespace_invitation_create(BasePage):
             encountered_create_error = False
         else:
             encountered_create_error = True
-        return json.dumps({'encountered_create_error': encountered_create_error, 'status_message': status_message}, indent=2)
+        return get_json_string({'encountered_create_error': encountered_create_error, 'status_message': status_message})
 
 class nodespace_invitation_decide_form(BasePage, InvitationDecideForm):
     REQUIRES_VALID_SESSION = False
@@ -936,8 +946,8 @@ class user_view(BasePage, ListTablePage):
         cls.is_allowed_to_use(viewed_user, viewing_user)
         viewed_user_dict = {}
         for col_key in cls._get_col_keys(None):
-            viewed_user_dict[col_key] = str(getattr(viewed_user, col_key))
-        return json.dumps(viewed_user_dict, indent=2)
+            viewed_user_dict[col_key] = getattr(viewed_user, col_key)
+        return get_json_string(viewed_user_dict)
 
 class user_info_edit_form(BasePage):
     USER_INFO_EDIT_FORM = web.form.Form(
@@ -998,7 +1008,7 @@ class user_info_edit(BasePage):
     @classmethod
     def render_page_json(cls, ms_session):
         edited_user, encountered_update_error = cls._render_page_helper(ms_session)
-        return json.dumps({'encountered_update_error': encountered_update_error}, indent=2)
+        return get_json_string({'encountered_update_error': encountered_update_error})
 
 class user_change_pass_form(BasePage):
     USER_CHANGE_PASS_FORM = web.form.Form(
@@ -1072,7 +1082,7 @@ class user_change_pass(BasePage):
     @classmethod
     def render_page_json(cls, ms_session):
         change_pass_result, editing_user, edited_user = cls._render_page_helper(ms_session)
-        return json.dumps(change_pass_result)
+        return get_json_string(change_pass_result)
 
 class NodespaceList(BasePage, ListTablePage):
     @classmethod
@@ -1088,7 +1098,7 @@ class NodespaceList(BasePage, ListTablePage):
     def render_page_is_allowed_to_use(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         ret_val = {'is_allowed_to_use': cls.is_allowed_to_use(None, user, should_raise_insufficient_priv_ex=False)}
-        return json.dumps(ret_val)
+        return get_json_string(ret_val)
     
     @classmethod
     def _render_page_helper(cls, ms_session):
@@ -1109,7 +1119,7 @@ class NodespaceList(BasePage, ListTablePage):
         nodespaces_dict_list = [{'nodespace_name': ns.nodespace_name, 
                                             'nodespace_description': ns.nodespace_description,
                                             'nodespace_id': ns.nodespace_id} for ns in nodespaces]
-        return json.dumps(nodespaces_dict_list, indent=2)
+        return get_json_string(nodespaces_dict_list)
 
 class nodespace_list_accessible(NodespaceList):
     @classmethod
@@ -1196,7 +1206,7 @@ class user_list_all(BasePage, ListTablePage):
     def render_page_is_allowed_to_use(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         ret_val = {'is_allowed_to_use': cls.is_allowed_to_use(None, user, should_raise_insufficient_priv_ex=False)}
-        return json.dumps(ret_val)
+        return get_json_string(ret_val)
     
     @classmethod
     def render_page_full_html(cls, ms_session):
@@ -1209,10 +1219,10 @@ class user_list_all(BasePage, ListTablePage):
         viewing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         users = cls._get_user_list(viewing_user)
         user_dict_list = [{'user_id': user.user_id, 'username': user.username, 'email_addr': user.email_addr, 
-                            'user_statement': user.user_statement, 'metaspace_privileges': str(user.metaspace_privileges),
-                            'is_enabled': user.is_enabled, 'creator': user.creator, 'creation_date': str(user.creation_date),
-                            'modifier': user.modifier, 'modification_date': str(user.modification_date)} for user in users]
-        return json.dumps(user_dict_list, indent=2)
+                            'user_statement': user.user_statement, 'metaspace_privileges': user.metaspace_privileges,
+                            'is_enabled': user.is_enabled, 'creator': user.creator, 'creation_date': user.creation_date,
+                            'modifier': user.modifier, 'modification_date': user.modification_date} for user in users]
+        return get_json_string(user_dict_list)
 
 class metaspace_access_edit_form(BasePage, PrivilegesEditForm):
     @classmethod
@@ -1335,7 +1345,7 @@ class metaspace_command_list(BasePage, ListTablePage):
     def render_page_is_allowed_to_use(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         ret_val = {'is_allowed_to_use': cls.is_allowed_to_use(None, user, should_raise_insufficient_priv_ex=False)}
-        return json.dumps(ret_val)
+        return get_json_string(ret_val)
     
     @classmethod
     def render_page_full_html(cls, ms_session):
@@ -1386,7 +1396,7 @@ class GraphViewPage(object):
             edge = cat_tree_dict['edges'][edge_id]
             edge_list.append(cls._get_cytoscape_edge_dict(edge))
         
-        return json.dumps(node_list + edge_list, indent=2)
+        return get_json_string(node_list + edge_list)
 
 class category_list(BasePage, GraphViewPage):
     @classmethod
@@ -1417,7 +1427,7 @@ class nodespace_overview(BasePage, GraphViewPage):
         overview_graph_info = tc.AdhocNeoQueries.get_nodespace_categories_and_writeups(NEODB, nodespace.nodespace_id)
         overview_graph_json = cls.build_cat_tree_json(overview_graph_info)
         return overview_graph_json
-    
+
     @classmethod
     def render_page_full_html(cls, ms_session):
         overview_graph_json = cls.render_page_json(ms_session)
@@ -1449,7 +1459,7 @@ class get_locale_messages(BasePage):
     @classmethod
     def render_page_json(cls, ms_session):
         msgs_dict = MSGS.TRANSLATION_LOCALES
-        return json.dumps(msgs_dict, indent=2)
+        return get_json_string(msgs_dict)
     
     @classmethod
     def render_page_json_assigned(cls, ms_session):

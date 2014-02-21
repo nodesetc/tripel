@@ -25,6 +25,12 @@ def empty_str_to_none(str):
     else:
         return str
 
+def none_to_empty_str(str):
+    if str is None:
+        return ''
+    else:
+        return str
+
 def generate_random_url_safe_string(string_len):
     # ripped off from http://stackoverflow.com/questions/785058/random-strings-in-python-2-6-is-this-ok
     return base64.urlsafe_b64encode(os.urandom(string_len))[0:string_len]

@@ -1,5 +1,10 @@
 <div class="tab-pane active">
-    <table class="table-bordered table-condensed">
+    <div ng-show="userListData.selectedRowId != null">
+        <a href="{{urlBase}}" ng-click="unselectUser()">&#10218; <span ng-i18next="users_show_all_label"></span></a>
+        <br><br>
+    </div>
+    
+    <table class="table table-bordered table-condensed">
         <tr>
             <th><span ng-i18next>username_col_hdr</span></th>
             <th><span ng-i18next>email_addr_label</span></th>
@@ -13,8 +18,8 @@
         </tr>
         
         <tbody>
-            <tr ng-repeat="user in userListData.userList">
-                <td><a href="{{urlBase + user.user_id}}">{{user.username}}</a>&nbsp;</td>
+            <tr ng-repeat="user in userListData.rowList" ng-show="userListData.selectedRowId == null || userListData.selectedRowId == user.user_id">
+                <td><a href="{{urlBase + '/' + user.user_id}}">{{user.username}}</a>&nbsp;</td>
                 <td>{{user.email_addr}}&nbsp;</td>
                 <td>{{user.user_statement}}&nbsp;</td>
                 <td>{{user.metaspace_privileges}}&nbsp;</td>
