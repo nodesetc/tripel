@@ -1,0 +1,33 @@
+<statusmessage should-show-msg="{{statusMsgInfo.shouldShowMsg}}" status-type="{{statusMsgInfo.statusType}}" status-msg="{{statusMsgInfo.statusMsg}}"></statusmessage>
+
+<form class="form-inline" ng-submit="submitUpdAccessForm();">
+    <h5>
+        <span ng-i18next="{{localContent.headerContentKey}}"></span>
+    </h5>
+    
+    <!-- TODO: switch to nodespace_access_checkboxes.html template by building a directive with it -->
+    <span ng-repeat="priv in privilegeInfo.grantablePrivileges">
+        <label class="checkbox">
+            <input type="checkbox" name="nodespace_privileges" ng-model="privilegeInfo.selectedNodespacePrivileges[priv]"/>
+            <span ng-i18next="{{priv}}_priv_title"></span>: <span ng-i18next="{{priv}}_priv_desc"></span>
+        </label><br>
+    </span><br>
+    <br>
+    
+    <div ng-show="isAlterAccess">
+        <span ng-i18next="user_is_enabled"></span>
+        <select name="is_enabled" ng-model="privilegeInfo.isEnabled">
+            <option value="true" ng-selected="privilegeInfo.isEnabled">{{localContent.accessEnabledOption}}</option>
+            <option value="false" ng-selected="!privilegeInfo.isEnabled">{{localContent.accessDisabledOption}}</option>
+        </select><br>
+        <br>
+    </div>
+    
+    <button class="btn btn-inverse btn-small"><span ng-i18next="{{localContent.updButtonContentKey}}"></span></button>
+</form>
+
+<div ng-show="isAlterAccess">
+    <form class="form-inline" ng-submit="submitDelAccessForm();">
+        <button class="btn btn-inverse btn-small"><span ng-i18next="del_nodespace_access_submit_btn"></span></button>
+    </form>
+</div>
