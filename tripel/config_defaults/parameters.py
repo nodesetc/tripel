@@ -1,3 +1,5 @@
+WEB_PY_DEBUG = False
+
 SERVER_HOSTNAME = 'https://my-server.com'
 APP_DEPLOYMENT_PATH = '/tripel'
 

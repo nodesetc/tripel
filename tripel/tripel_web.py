@@ -1,11 +1,3 @@
-"""
-TODO:
-* display in UTC by default.  but since timestamp has TZ info, should really make disp TZ a user pref applied to query results.
- * actually, the reason you're seeing PST offsets in the current web UI is likely the way PG is returning date 
-  fields.  still, date fields should be init'ed to datetime objs from query results, and those objs should be run through
-  formatting before display (i.e. don't dump raw PG output).
-"""
-
 import re
 import urllib
 import json
@@ -537,9 +529,9 @@ class nodespace_view(BasePage, ListTablePage):
 
 class PrivilegesEditForm(object):
     @classmethod
-    def privilege_select_elts(cls, field_name, grantable_privileges, selected_privileges=tc.PrivilegeSet()):
+    def privilege_select_elts(cls, field_name, grantable_privileges_list, selected_privileges=tc.PrivilegeSet()):
         priv_entries = []
-        for priv in grantable_privileges:
+        for priv in grantable_privileges_list:
             priv_title = MSGS.lookup('%s_priv_title' % priv)
             priv_desc = MSGS.lookup('%s_priv_desc' % priv)
             priv_checkbox = web.form.Checkbox(field_name, value=priv, description='%s: %s' % (priv_title, priv_desc), checked=(selected_privileges.has_privilege(priv)))
@@ -549,13 +541,11 @@ class PrivilegesEditForm(object):
     
     @classmethod
     def metaspace_privilege_select_elts(cls, field_name='metaspace_privileges', grantable_privileges=None, selected_privileges=tc.MetaspacePrivilegeSet()):
-        comparator = tc.MetaspacePrivilegeSet.comparator
-        return cls.privilege_select_elts(field_name, sorted(grantable_privileges, comparator), selected_privileges)
+        return cls.privilege_select_elts(field_name, sorted(grantable_privileges, tc.MetaspacePrivilegeSet.comparator), selected_privileges)
     
     @classmethod
     def nodespace_privilege_select_elts(cls, field_name='nodespace_privileges', grantable_privileges=None, selected_privileges=tc.NodespacePrivilegeSet()):
-        comparator = tc.NodespacePrivilegeSet.comparator
-        return cls.privilege_select_elts(field_name, sorted(grantable_privileges, comparator), selected_privileges)
+        return cls.privilege_select_elts(field_name, sorted(grantable_privileges, tc.NodespacePrivilegeSet.comparator), selected_privileges)
 
 class user_invitation_create_form(BasePage, PrivilegesEditForm):
     @classmethod
@@ -582,8 +572,7 @@ class user_invitation_create_form(BasePage, PrivilegesEditForm):
     def render_page_json(cls, ms_session):
         user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         cls.is_allowed_to_use(None, user)
-        comparator = tc.MetaspacePrivilegeSet.comparator
-        grantable_privileges = sorted(user.metaspace_privileges.get_grantable_privileges(), comparator)
+        grantable_privileges = sorted(user.metaspace_privileges.get_grantable_privileges(), tc.MetaspacePrivilegeSet.comparator)
         return get_json_string({'grantable_privileges': grantable_privileges})
 
 class user_invitation_create(BasePage):
@@ -717,9 +706,7 @@ class nodespace_invitation_create_form(BasePage, PrivilegesEditForm):
     @classmethod
     def _get_grantable_privileges(cls, nodespace, user):
         ns_access_for_user = nodespace.get_nodespace_access_for_user(PGDB, user.user_id)
-        grantable_privileges = ns_access_for_user.nodespace_privileges if ns_access_for_user is not None else tc.NodespacePrivilegeSet()
-        comparator = tc.NodespacePrivilegeSet.comparator
-        grantable_privileges = sorted(grantable_privileges, comparator)
+        grantable_privileges = (ns_access_for_user.nodespace_privileges if ns_access_for_user is not None else tc.NodespacePrivilegeSet()).get_grantable_privileges()
         return grantable_privileges
     
     @classmethod
@@ -753,6 +740,7 @@ class nodespace_invitation_create_form(BasePage, PrivilegesEditForm):
     def render_page_json(cls, ms_session):
         user, nodespace = cls._render_page_helper(ms_session)
         grantable_privileges = cls._get_grantable_privileges(nodespace, user)
+        grantable_privileges = sorted(grantable_privileges, tc.NodespacePrivilegeSet.comparator)
         return get_json_string({'grantable_privileges': grantable_privileges})
 
 class nodespace_invitation_create(BasePage):
@@ -1191,6 +1179,21 @@ class user_list_nodespace(BasePage, ListTablePage):
         user, nodespace, user_list = cls._render_page_helper(ms_session)
         return get_json_string(user_list)
 
+class user_list_nodespace_absent(BasePage):
+    @classmethod
+    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
+        return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.LIST_ALL_USERS_ACTION, target, actor, should_raise_insufficient_priv_ex)
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        nodespace_id = web.input().get('nodespace_id')
+        user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        cls.is_allowed_to_use(None, user)
+        
+        user_list = tc.User.get_users_absent_from_nodespace(PGDB, nodespace_id)
+        return get_json_string([{'user_id': user.user_id, 'username': user.username, 'email_addr': user.email_addr,  
+                                'user_statement': user.user_statement, 'is_enabled': user.is_enabled} for user in user_list])
+
 class user_list_all(BasePage, ListTablePage):
     @classmethod
     def _get_col_keys(cls, table_data):
@@ -1283,6 +1286,12 @@ class metaspace_access_edit(BasePage):
 
 class nodespace_access_edit_form(BasePage, PrivilegesEditForm):
     @classmethod
+    def _get_grantable_privileges(cls, nodespace, user):
+        ns_access_for_user = nodespace.get_nodespace_access_for_user(PGDB, user.user_id)
+        grantable_privileges = (ns_access_for_user.nodespace_privileges if ns_access_for_user is not None else tc.NodespacePrivilegeSet()).get_grantable_privileges()
+        return grantable_privileges
+    
+    @classmethod
     def _get_content_summary(cls, user, extra_display_info):
         if user is None:
             return None
@@ -1296,9 +1305,9 @@ class nodespace_access_edit_form(BasePage, PrivilegesEditForm):
         return nodespace_access_edit.is_allowed_to_use(target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
-    def get_ns_priv_edit_form(cls, edited_user, editing_user, nodespace_id):
-        grantable_privileges = tc.NodespaceAccessEntry.get_existing_access_entry(PGDB, nodespace_id, editing_user.user_id).nodespace_privileges.get_grantable_privileges()
-        cur_access = tc.NodespaceAccessEntry.get_existing_access_entry(PGDB, nodespace_id, edited_user.user_id)
+    def get_ns_priv_edit_form(cls, edited_user, editing_user, nodespace):
+        grantable_privileges = cls._get_grantable_privileges(nodespace, editing_user)
+        cur_access = tc.NodespaceAccessEntry.get_existing_access_entry(PGDB, nodespace.nodespace_id, edited_user.user_id)
         selected_privs = cur_access.nodespace_privileges
         is_enabled_radio_opts = [(True, MSGS.lookup('ns_enabled_desc')), (False, MSGS.lookup('ns_disabled_desc'))]
         return web.form.Form(*(cls.nodespace_privilege_select_elts(grantable_privileges=grantable_privileges, selected_privileges=selected_privs) +
@@ -1306,18 +1315,37 @@ class nodespace_access_edit_form(BasePage, PrivilegesEditForm):
                              web.form.Button(name=MSGS.lookup('update_ns_privs_submit_btn'))]))
     
     @classmethod
-    def render_page(cls, ms_session):
+    def _render_page_helper(cls, ms_session):
         editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         edited_user = tc.User.get_existing_user_by_id(PGDB, web.input().get('edited_user_id'))
         nodespace_id = web.input().get('nodespace_id')
         nodespace = tc.Nodespace.get_existing_nodespace_by_id(PGDB, nodespace_id)
         cls.is_allowed_to_use(edited_user, editing_user)
         
+        return (editing_user, edited_user, nodespace)
+    
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        editing_user, edited_user, nodespace = cls._render_page_helper(ms_session)
+        
         edited_user_id_hidden_html = web.form.Hidden(name='edited_user_id', value=edited_user.user_id).render()
-        nodespace_id_hidden_html = web.form.Hidden(name='nodespace_id', value=nodespace_id).render()
-        ns_priv_edit_form_html = '%s\n%s\n%s' % (nodespace_id_hidden_html, edited_user_id_hidden_html, cls.get_ns_priv_edit_form(edited_user, editing_user, nodespace_id)().render())
+        nodespace_id_hidden_html = web.form.Hidden(name='nodespace_id', value=nodespace.nodespace_id).render()
+        ns_priv_edit_form_html = '%s\n%s\n%s' % (nodespace_id_hidden_html, edited_user_id_hidden_html, cls.get_ns_priv_edit_form(edited_user, editing_user, nodespace)().render())
         extra_display_info = {'nodespace': nodespace, 'edited_user': edited_user}
+        
         return cls.wrap_content(RENDER.basic_form_template(ns_priv_edit_form_html, 'ns_priv_edit_form', nodespace_access_edit.build_page_url()), user=editing_user, extra_display_info=extra_display_info)
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        editing_user, edited_user, nodespace = cls._render_page_helper(ms_session)
+        
+        grantable_privileges = cls._get_grantable_privileges(nodespace, editing_user)
+        grantable_privileges = sorted(grantable_privileges, tc.NodespacePrivilegeSet.comparator)
+        cur_access = tc.NodespaceAccessEntry.get_existing_access_entry(PGDB, nodespace.nodespace_id, edited_user.user_id)
+        current_privileges = list(cur_access.nodespace_privileges)
+        is_enabled = cur_access.is_enabled
+        
+        return get_json_string({'grantable_privileges': grantable_privileges, 'current_privileges': current_privileges, 'is_enabled': is_enabled})
 
 class nodespace_access_edit(BasePage):
     @classmethod
@@ -1325,7 +1353,7 @@ class nodespace_access_edit(BasePage):
         return NS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, NS_PRVLG_CHKR.ALTER_NODESPACE_ACCESS_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
-    def render_page(cls, ms_session):
+    def _render_page_helper(cls, ms_session):
         editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         edited_user = tc.User.get_existing_user_by_id(PGDB, web.input().get('edited_user_id'))
         nodespace_id = web.input().get('nodespace_id')
@@ -1336,8 +1364,60 @@ class nodespace_access_edit(BasePage):
         
         cur_nodespace_access = tc.NodespaceAccessEntry.get_existing_access_entry(PGDB, nodespace_id, edited_user.user_id)
         cur_nodespace_access.set_and_save_access_entry(PGDB, new_nodespace_privileges, is_enabled, editing_user.user_id)
-        
+    
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        cls._render_page_helper(ms_session)
+        nodespace_id = web.input().get('nodespace_id')
         web.found(user_list_nodespace.build_page_url(query_params={'nodespace_id': nodespace_id}))
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        try:
+            cls._render_page_helper(ms_session)
+            encountered_update_error = False
+            status_message = MSGS.lookup('nodespace_access_update_success_blurb')
+        except:
+            encountered_update_error = True
+            status_message = MSGS.lookup('nodespace_access_update_failure_blurb')
+        return get_json_string({'encountered_update_error': encountered_update_error, 'status_message': status_message})
+
+#TODO: centralize the repeated stuff between access edit and access revoke
+class nodespace_access_revoke(BasePage):
+    @classmethod
+    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
+        return nodespace_access_edit.is_allowed_to_use(target, actor, should_raise_insufficient_priv_ex)
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        edited_user = tc.User.get_existing_user_by_id(PGDB, web.input().get('edited_user_id'))
+        nodespace_id = web.input().get('nodespace_id')
+        cls.is_allowed_to_use(edited_user, editing_user)
+        
+        cur_nodespace_access = tc.NodespaceAccessEntry.get_existing_access_entry(PGDB, nodespace_id, edited_user.user_id)
+        cur_nodespace_access.revoke_access_entry(PGDB)
+        status_message = MSGS.lookup('nodespace_access_revoke_success_blurb')
+        
+        return get_json_string({'encountered_update_error': False, 'status_message': status_message})
+
+class nodespace_access_grant(BasePage):
+    @classmethod
+    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
+        return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.GRANT_NODESPACE_ACCESS_SANS_INV_ACTION, target, actor, should_raise_insufficient_priv_ex)
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
+        edited_user = tc.User.get_existing_user_by_id(PGDB, web.input().get('edited_user_id'))
+        nodespace_id = web.input().get('nodespace_id')
+        cls.is_allowed_to_use(edited_user, editing_user)
+        
+        nodespace_privileges = tc.NodespacePrivilegeSet.create_from_list_of_strings(web.input(nodespace_privileges=[]).get('nodespace_privileges'))
+        tc.NodespaceAccessEntry.create_new_access_entry(PGDB, nodespace_id, nodespace_privileges, edited_user.user_id, editing_user.user_id, None)
+        status_message = MSGS.lookup('nodespace_access_grant_success_blurb')
+        
+        return get_json_string({'encountered_update_error': False, 'status_message': status_message})
 
 class metaspace_command_list(BasePage, ListTablePage):
     @classmethod
@@ -1550,9 +1630,9 @@ page_classes = [login_form, login_verify, logout, auth_status,
                 user_invitation_create_form, user_invitation_create, user_invitation_decide_form, user_invitation_decide, 
                 nodespace_invitation_create_form, nodespace_invitation_create, nodespace_invitation_decide_form, nodespace_invitation_decide, 
                 nodespace_access_view, user_view, user_info_edit_form, user_info_edit, user_change_pass_form, user_change_pass,
-                nodespace_list_accessible, nodespace_list_all, user_list_nodespace, user_list_all, 
+                nodespace_list_accessible, nodespace_list_all, user_list_nodespace, user_list_nodespace_absent, user_list_all, 
                 metaspace_access_edit_form, metaspace_access_edit, 
-                nodespace_access_edit_form, nodespace_access_edit, metaspace_command_list,
+                nodespace_access_edit_form, nodespace_access_edit, nodespace_access_revoke, nodespace_access_grant, metaspace_command_list,
                 category_list, nodespace_overview, writeup_list, comment_thread_list,
                 comment_create_form, comment_reply_form, comment_edit_form, writeup_create_form, writeup_edit_form,
                 nga, get_locale_messages]
@@ -1563,6 +1643,8 @@ for cls in page_classes:
     urls_list.append(cls)
 
 urls = tuple(urls_list)
+
+web.config.debug = params.WEB_PY_DEBUG
 
 app = web.application(urls, globals())
 application = app.wsgifunc()

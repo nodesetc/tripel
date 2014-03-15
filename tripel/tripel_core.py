@@ -87,6 +87,18 @@ class PgPersistent(object):
 
 
 class NeoUtil(object):
+    '''
+    TODO: this needs to be re-worked in light of neo4j 2.0 and its support of proper transactions via REST.
+        my first impression:
+          *anything that returned gremlin statements should now return the equivalent cypher statements.
+          *anything that gets converted from gremlin statement blocks to cypher statement lists should run said 
+          cypher lists in a neo4j transaction (instead of the run_gremlin_statements method).
+          *still need to do unique id generation beforehand.
+          *could probably repurpose TripelBatch to for use as a with statement around the new tx mechanism.
+          *should probably do all this on a branch and merge back so i can commit incrementally.
+          *should probably rip out anything that's unused after the conversion (which will likely be anything gremlin 
+          related).  (too bad, that was fun to write, but native's better and clutter's bad)
+    '''
     class TripelBatch(neo4j.WriteBatch):
         def __enter__(self):
             return self
@@ -286,8 +298,9 @@ class NeoUtil(object):
                 'py_result': py_result}
 
 
-#TODO: each graph element should have a gremlin data integrity check fn, to be run in the transaction and throw an 
-# error if expected constraints aren't met (e.g., edge connecting to the wrong node type)
+#TODO: would be good to have integrity check cypher queries that can be run so that transactions can
+# be aborted if things aren't right (this was previously phrased in gremlin terms, but the general idea's 
+# applicable to transactions in general).
 #TODO: i am very tempted to use networkx to store graphs, but that might be overkill.  if i did,
 # i think it would only matter when i create a graph object from query results.  graph elements (nodes and
 # edges) would be instances of TripelGraphElement (which i think would require implementing the hashcode method,
@@ -295,6 +308,7 @@ class NeoUtil(object):
 # functions (which would mean making the required fields check optional for graph element objects, or always retrieving
 # all required fields).
 class TripelGraphElement(object):
+    ### TODO: this class and its children need more comments
     FULLTEXT_IDX_CONFIG = {'provider': 'lucene', 'type': 'fulltext', 'to_lower_case': 'true'}
     
     class MissingRequiredFieldError(Exception):
@@ -1077,9 +1091,24 @@ class User(PgPersistent):
                         nsam.is_enabled is_enabled_for_ns,
                         nsam.nodespace_privileges
                     from %(user_tbl)s u, 
-                        %(ns_tbl)s nsam 
+                        %(nsam_tbl)s nsam 
                     where u.user_id = nsam.user_id 
-                    and nsam.nodespace_id = $nodespace_id;''' % {'user_tbl': cls.TABLE_NAME, 'ns_tbl': NodespaceAccessEntry.TABLE_NAME}
+                    and nsam.nodespace_id = $nodespace_id;''' % {'user_tbl': cls.TABLE_NAME, 'nsam_tbl': NodespaceAccessEntry.TABLE_NAME}
+        where_clause_vars = {'nodespace_id': nodespace_id}
+        query_results = list(pgdb.query(query_sql, vars=where_clause_vars))
+        return query_results
+    
+    @classmethod
+    def get_users_absent_from_nodespace(cls, pgdb, nodespace_id):
+        query_sql = '''select u.user_id,
+                        u.email_addr,
+                        u.username,
+                        u.user_statement,
+                        u.is_enabled
+                    from %(user_tbl)s u
+                    where u.user_id not in (select nsam.user_id 
+                                            from %(nsam_tbl)s nsam 
+                                            where nsam.nodespace_id = $nodespace_id);''' % {'user_tbl': cls.TABLE_NAME, 'nsam_tbl': NodespaceAccessEntry.TABLE_NAME}
         where_clause_vars = {'nodespace_id': nodespace_id}
         query_results = list(pgdb.query(query_sql, vars=where_clause_vars))
         return query_results
@@ -1241,8 +1270,9 @@ class MetaspacePrivilegeChecker(PrivilegeChecker):
     VIEW_METASPACE_COMMANDS_ACTION = 'view_metaspace_cmds_act'
     CREATE_USER_ACTION, CREATE_SPACE_ACTION, LIST_ALL_SPACES_ACTION = 'create_user_act', 'create_space_act', 'list_all_spaces_act'
     ALTER_USER_INFO_ACTION, ALTER_USER_ACCESS_ACTION, LIST_ALL_USERS_ACTION = 'alter_user_info_act', 'alter_user_access_act', 'list_all_users_act'
+    GRANT_NODESPACE_ACCESS_SANS_INV_ACTION = 'grant_nodespace_access_sans_inv_act'
     RECOGNIZED_ACTIONS = frozenset([VIEW_METASPACE_COMMANDS_ACTION, CREATE_USER_ACTION, CREATE_SPACE_ACTION, LIST_ALL_SPACES_ACTION, 
-                                    ALTER_USER_INFO_ACTION, ALTER_USER_ACCESS_ACTION, LIST_ALL_USERS_ACTION])
+                                    ALTER_USER_INFO_ACTION, ALTER_USER_ACCESS_ACTION, LIST_ALL_USERS_ACTION, GRANT_NODESPACE_ACCESS_SANS_INV_ACTION])
     
     @classmethod
     def get_action_check_fn(cls, action):
@@ -1254,7 +1284,7 @@ class MetaspacePrivilegeChecker(PrivilegeChecker):
             return cls.can_update_user
         elif action == cls.CREATE_SPACE_ACTION:
             return cls.can_create_space
-        elif action == cls.ALTER_USER_ACCESS_ACTION or action == cls.LIST_ALL_USERS_ACTION or action == cls.LIST_ALL_SPACES_ACTION:
+        elif action in [cls.ALTER_USER_ACCESS_ACTION, cls.LIST_ALL_USERS_ACTION, cls.LIST_ALL_SPACES_ACTION, cls.GRANT_NODESPACE_ACCESS_SANS_INV_ACTION]:
             # reserved for super users.  a super user would've bypassed the 
             # check fn execution, so just return a fn that always returns false.
             return cls.no_can_do

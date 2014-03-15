@@ -12,33 +12,23 @@
     <label>
         <span ng-i18next="create_inv_email_addr"></span><br>
         <input type="text" name="invitee_email_addr" ng-model="invitationInfo.invitee_email_addr"/>
-    </label>
-    <br><br>
+    </label><br>
+    <br>
     
-    <!-- TODO: would be nice to get the checkboxes working with ng-repeat -->
-    <label class="checkbox" ng-show="privilegeInfo.grantablePrivileges.indexOf('contributor') >= 0">
-        <input type="checkbox" name="nodespace_privileges" ng-model="invitationInfo.selected_nodespace_privileges['contributor']"/>
-        <span ng-i18next="contributor_priv_title"></span>: <span ng-i18next="contributor_priv_desc"></span>
-    </label><br>
-    <label class="checkbox" ng-show="privilegeInfo.grantablePrivileges.indexOf('editor') >= 0">
-        <input type="checkbox" name="nodespace_privileges" ng-model="invitationInfo.selected_nodespace_privileges['editor']"/>
-        <span ng-i18next="editor_priv_title"></span>: <span ng-i18next="editor_priv_desc"></span>
-    </label><br>
-    <label class="checkbox" ng-show="privilegeInfo.grantablePrivileges.indexOf('moderator') >= 0">
-        <input type="checkbox" name="nodespace_privileges" ng-model="invitationInfo.selected_nodespace_privileges['moderator']"/>
-        <span ng-i18next="moderator_priv_title"></span>: <span ng-i18next="moderator_priv_desc"></span>
-    </label><br>
-    <label class="checkbox" ng-show="privilegeInfo.grantablePrivileges.indexOf('admin') >= 0">
-        <input type="checkbox" name="nodespace_privileges" ng-model="invitationInfo.selected_nodespace_privileges['admin']"/>
-        <span ng-i18next="admin_priv_title"></span>: <span ng-i18next="admin_priv_desc"></span>
-    </label><br>
+    <!-- TODO: switch to nodespace_access_checkboxes.html template by building a directive with it -->
+    <span ng-repeat="priv in privilegeInfo.grantablePrivileges">
+        <label class="checkbox">
+            <input type="checkbox" name="nodespace_privileges" ng-model="invitationInfo.selectedNodespacePrivileges[priv]"/>
+            <span ng-i18next="{{priv}}_priv_title"></span>: <span ng-i18next="{{priv}}_priv_desc"></span>
+        </label><br>
+    </span><br>
     <br>
     
     <label>
         <span ng-i18next="create_ns_inv_msg"></span><br>
         <textarea rows="3" cols="40" name="invitation_msg" ng-model="invitationInfo.invitation_msg"></textarea>
-    </label>
-    <br><br>
+    </label><br>
+    <br>
     
     <button class="btn btn-inverse btn-small"><span ng-i18next="create_inv_submit_btn"></span></button>
 </form>

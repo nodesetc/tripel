@@ -6,9 +6,23 @@ i18n.init({fallbackLng: 'en-US',
 			dynamicLoad: false});
 
 
+//TODO: maybe all controller names should be constants?  these just get re-used more than most, so it made more sense here.
+var userListCtrlNames = {all: 'UserListAllCtrl',
+					nodespace: 'UserListNodespaceCtrl',
+					nodespaceAdmin: 'UserListNodespaceAdminCtrl',
+					nodespaceAbsent: 'UserListNodespaceAbsentCtrl'};
+
 //TODO: should avoid also defining rootPath here, since it's already defined in python
 trplApp.value('trplConstants', {rootPath: '/tripel',
-								dateFormat: 'yyyy-MM-dd HH:mm:ss Z'});
+								dateFormat: 'yyyy-MM-dd HH:mm:ss Z',
+								statusTypeError: 'error',
+								statusTypeSuccess: 'success',
+								statusTypeWarning: 'warning',
+								userListCtrlNames: userListCtrlNames});
+//TODO: maybe all constants should just be in a trplConstants dict that's not a trplApp value.  can't 
+//inject the value in all places, and the current approach of sometimes using trplConstants is inconsistent.
+//though it is nice to be able to inject it where possible.
+
 
 trplApp.value('trplEvents', {selectNodespace: 'selectNodespace',
 								selectUser: 'selectUser'});
@@ -53,17 +67,27 @@ trplApp.config(
 				})
 			.state('appView.metaspaceCmds.nodespaceListAll.selectNodespace.userList', {
 					url: '/user_list_nodespace',
-					controller: 'UserListNodespaceAdminCtrl',
+					controller: userListCtrlNames.nodespaceAdmin,
 					templateUrl: 'static/ng_partials/user_list_nodespace.html'
+				})
+			.state('appView.metaspaceCmds.nodespaceListAll.selectNodespace.userList.selectUser', {
+					url: '/:userId',
+					controller: 'NodespaceUserAccessAlterCtrl',
+					templateUrl: 'static/ng_partials/nodespace_alter_access.html'
 				})
 			.state('appView.metaspaceCmds.nodespaceListAll.selectNodespace.nodespaceGrantAccess', {
 					url: '/nodespace_grant_access',
-					controller: '',
-					templateUrl: 'static/ng_partials/nodespace_grant_access.html'
+					controller: userListCtrlNames.nodespaceAbsent,
+					templateUrl: 'static/ng_partials/user_list_nodespace.html'
+				})
+			.state('appView.metaspaceCmds.nodespaceListAll.selectNodespace.nodespaceGrantAccess.selectUser', {
+					url: '/:userId',
+					controller: 'NodespaceUserAccessGrantCtrl',
+					templateUrl: 'static/ng_partials/nodespace_alter_access.html'
 				})
 			.state('appView.metaspaceCmds.userListAll', {
 					url: '/users',
-					controller: 'UserListAllCtrl',
+					controller: userListCtrlNames.all,
 					templateUrl: 'static/ng_partials/user_list_metaspace.html'
 				})
 			.state('appView.metaspaceCmds.userListAll.selectUser', {
@@ -111,7 +135,7 @@ trplApp.config(
 					 see:  https://github.com/angular-ui/ui-router/wiki/URL-Routing#wiki-important-stateparams-gotcha
 					*/
 					url: '/user_list_nodespace',
-					controller: 'UserListNodespaceCtrl',
+					controller: userListCtrlNames.nodespace,
 					templateUrl: 'static/ng_partials/user_list_nodespace.html'
 				})
 			.state('appView.nodespaceListAccessible.selectNodespace.userList.selectUser', {
@@ -205,6 +229,9 @@ trplApp.service('trplBackendSvc',
 			this.reqObj('POST', callbackFn, subUrl, params);
 		}
 		
+		//TODO: currently there's a minor inconsistency, where get* methods take explicit param values for each 
+		//field, and post* methods take an object.  might want to make this the same for both.  inclined to make them 
+		//all take explicit param lists.
 		this.getAccessibleNodespaces = function(callbackFn) {
 			return this.getObjList(callbackFn, '/nodespace_list_accessible', {});
 		};
@@ -223,6 +250,10 @@ trplApp.service('trplBackendSvc',
 		
 		this.getNodespaceUsers = function(callbackFn, nodespaceId) {
 			return this.getObjList(callbackFn, '/user_list_nodespace', {nodespace_id: nodespaceId});
+		};
+		
+		this.getNodespaceAbsentUsers = function(callbackFn, nodespaceId) {
+			return this.getObjList(callbackFn, '/user_list_nodespace_absent', {nodespace_id: nodespaceId});
 		};
 		
 		this.getNodespaceViewInfo = function(callbackFn, nodespaceId) {
@@ -249,8 +280,8 @@ trplApp.service('trplBackendSvc',
 			return this.postReq(callbackFn, '/nodespace_create', nodespaceData);
 		};
 		
-		this.editNodespace = function(callbackFn, nodespaceData) {
-			return this.postReq(callbackFn, '/nodespace_edit', nodespaceData);
+		this.editNodespace = function(callbackFn, nodespaceUpdData) {
+			return this.postReq(callbackFn, '/nodespace_edit', nodespaceUpdData);
 		};
 		
 		this.getGrantableMetaspacePrivileges = function(callbackFn) {
@@ -267,6 +298,22 @@ trplApp.service('trplBackendSvc',
 		
 		this.createNodespaceInvitation = function(callbackFn, invitationData) {
 			return this.postReq(callbackFn, '/nodespace_invitation_create', invitationData);
+		};
+		
+		this.getNodespaceAccessInfo = function(callbackFn, nodespaceId, editedUserId) {
+			return this.getObj(callbackFn, '/nodespace_access_edit_form', {nodespace_id: nodespaceId, edited_user_id: editedUserId});
+		};
+		
+		this.updateNodespaceAccess = function(callbackFn, nodespaceAccessUpdData) {
+			return this.postReq(callbackFn, '/nodespace_access_edit', nodespaceAccessUpdData);
+		};
+		
+		this.revokeNodespaceAccess = function(callbackFn, nodespaceAccessDelData) {
+			return this.postReq(callbackFn, '/nodespace_access_revoke', nodespaceAccessDelData);
+		};
+		
+		this.grantNodespaceAccess =  function(callbackFn, nodespaceAccessGrantData) {
+			return this.postReq(callbackFn, '/nodespace_access_grant', nodespaceAccessGrantData);
 		};
 	}
 );
@@ -328,7 +375,7 @@ trplApp.service('paneListSvc',
 						panes[1].isUsable = nodespaceViewCmdPerms['is_allowed_to_edit_nodespace'];
 						panes[2].isUsable = nodespaceViewCmdPerms['is_allowed_to_list_nodespace_users'];
 						panes[3].isUsable = nodespaceViewCmdPerms['is_allowed_to_invite_nodespace_users'];
-					}
+					};
 					
 					trplBackendSvc.getNodespaceViewInfo(callbackFn, $stateParams.nodespaceId);
 					
@@ -345,12 +392,12 @@ trplApp.service('paneListSvc',
 						panes[0].isUsable = nodespaceViewCmdPerms['is_allowed_to_edit_nodespace'];
 						panes[1].isUsable = nodespaceViewCmdPerms['is_allowed_to_list_nodespace_users'];
 						panes[2].isUsable = nodespaceViewCmdPerms['is_allowed_to_invite_nodespace_users'];
-					}
+					};
 					
 					trplBackendSvc.getNodespaceViewInfo(callbackFn, $stateParams.nodespaceId);
 					
 					return panes;
-					
+				
 				default:
 					return [];
 			}
@@ -373,6 +420,20 @@ trplApp.controller('SelectPaneCtrl',
 	}
 );
 
+//TODO: refactor ad-hoc status messages to use this and the corresponding partial
+var getOperationStatusCallbackFn = function(statusMsgInfoObj, failureTextKey, trplConstants) {
+	return function(opResult) {
+		statusMsgInfoObj.shouldShowMsg = true;
+		if (opResult == null) {
+			statusMsgInfoObj.statusType = trplConstants.statusTypeError;
+			statusMsgInfoObj.statusMsg = i18n.t(failureTextKey);
+		} else {
+			statusMsgInfoObj.statusType = (opResult.encountered_update_error == true) ? trplConstants.statusTypeError : trplConstants.statusTypeSuccess;
+			statusMsgInfoObj.statusMsg = opResult.status_message;
+		}
+	};
+};
+		
 var getTableListCallbackFn = function(tableListDataObj) {
 	return function(objList) {
 		tableListDataObj.rowList = objList;
@@ -417,21 +478,21 @@ trplApp.controller('SelectNodespaceCtrl',
 	}
 );
 
-var userListAllCtrlName = 'UserListAllCtrl';
-var userListNodespaceCtrlName = 'UserListNodespaceCtrl';
-var userListNodespaceAdminCtrlName = 'UserListNodespaceAdminCtrl';
-
 function getUserListCtrlFn(controllerName) {
+	//note that the function returned here assumes it'll get its params injected by angular upon invocation.  it's intended to be used to build controllers.
 	return function($scope, $stateParams, $filter, trplBackendSvc, trplConstants, trplEvents) {
 		switch(controllerName) {
-			case userListAllCtrlName:
+			case trplConstants.userListCtrlNames.all:
 				$scope.urlBase = '#/app_view/metaspace_cmds/users';
 				break;
-			case userListNodespaceCtrlName:
+			case trplConstants.userListCtrlNames.nodespace:
 				$scope.urlBase = '#/app_view/nodespaces_accessible/'+$stateParams.nodespaceId+'/user_list_nodespace';
 				break;
-			case userListNodespaceAdminCtrlName:
+			case trplConstants.userListCtrlNames.nodespaceAdmin:
 				$scope.urlBase = '#/app_view/metaspace_cmds/nodespaces_all/'+$stateParams.nodespaceId+'/user_list_nodespace';
+				break;
+			case trplConstants.userListCtrlNames.nodespaceAbsent:
+				$scope.urlBase = '#/app_view/metaspace_cmds/nodespaces_all/'+$stateParams.nodespaceId+'/nodespace_grant_access';
 				break;
 			default:
 				$scope.urlBase = '#/';
@@ -443,25 +504,29 @@ function getUserListCtrlFn(controllerName) {
 		var callbackFn = function(userList) {
 			userListData.rowList = userList;
 			
-			userListData.rowList.forEach(function(val, idx, arr) {
-								if(val.creation_date != null) {
-									val.creation_date = new Date(val.creation_date.replace(" ", "T"));
-									val.creation_date = $filter('date')(val.creation_date, trplConstants.dateFormat);
-								}
-								
-								if(val.modification_date != null) {
-									val.modification_date = new Date(val.modification_date.replace(" ", "T"));
-									val.modification_date = $filter('date')(val.modification_date, trplConstants.dateFormat);
-								}
-							});
-							
+			if (userListData.rowList != null) {
+				userListData.rowList.forEach(function(val, idx, arr) {
+									if(val.creation_date != null) {
+										val.creation_date = new Date(val.creation_date.replace(" ", "T"));
+										val.creation_date = $filter('date')(val.creation_date, trplConstants.dateFormat);
+									}
+									
+									if(val.modification_date != null) {
+										val.modification_date = new Date(val.modification_date.replace(" ", "T"));
+										val.modification_date = $filter('date')(val.modification_date, trplConstants.dateFormat);
+									}
+								});
+			}
 		};
 		switch (controllerName) {
-			case userListAllCtrlName:
+			case trplConstants.userListCtrlNames.all:
 				trplBackendSvc.getAllUsers(callbackFn);
 				break;
-			case userListNodespaceCtrlName:
-			case userListNodespaceAdminCtrlName:
+			case trplConstants.userListCtrlNames.nodespaceAbsent:
+				trplBackendSvc.getNodespaceAbsentUsers(callbackFn, $stateParams.nodespaceId);
+				break;
+			case trplConstants.userListCtrlNames.nodespace:
+			case trplConstants.userListCtrlNames.nodespaceAdmin:
 				trplBackendSvc.getNodespaceUsers(callbackFn, $stateParams.nodespaceId);
 				break;
 		}
@@ -474,9 +539,10 @@ function getUserListCtrlFn(controllerName) {
 	};
 }
 
-trplApp.controller('UserListAllCtrl', getUserListCtrlFn('UserListAllCtrl'));
-trplApp.controller('UserListNodespaceCtrl', getUserListCtrlFn('UserListNodespaceCtrl'));
-trplApp.controller('UserListNodespaceAdminCtrl', getUserListCtrlFn('UserListNodespaceAdminCtrl'));
+//register each type of user list controller
+[userListCtrlNames.all, userListCtrlNames.nodespace, userListCtrlNames.nodespaceAdmin, userListCtrlNames.nodespaceAbsent].forEach(function(val, idx, arr) {
+																	trplApp.controller(val, getUserListCtrlFn(val));
+																});
 
 trplApp.controller('SelectUserCtrl',
 	function($scope, $stateParams, trplEvents) {
@@ -526,7 +592,7 @@ trplApp.controller('EditUserInfoCtrl',
 		};
 		$scope.submitEditForm = submitEditForm;
 		
-		//the fn call to get the user info will be invoke by this call to get the auth info
+		//the fn call to get the user info will be invoked by this call to get the auth info
 		trplBackendSvc.getAuthStatus(authStatusCallbackFn);
 	}
 );
@@ -606,10 +672,10 @@ trplApp.controller('EditNodespaceCtrl',
 		};
 		
 		var submitNodespaceEditForm = function() {
-			var nsEditData = {'nodespace_id': $stateParams.nodespaceId,
+			var nsUpdData = {'nodespace_id': $stateParams.nodespaceId,
 								'nodespace_name': nodespaceInfo.nodespace_name, 
 								'nodespace_description': nodespaceInfo.nodespace_description};
-			trplBackendSvc.editNodespace(nodespaceEditCallbackFn, nsEditData);
+			trplBackendSvc.editNodespace(nodespaceEditCallbackFn, nsUpdData);
 		};
 		$scope.submitForm = submitNodespaceEditForm;
 	}
@@ -660,8 +726,8 @@ trplApp.controller('CreateUserInvitationCtrl',
 trplApp.controller('CreateNodespaceInvitationCtrl',
 	function($scope, $stateParams, trplBackendSvc) {
 		var privilegeInfo = $scope.privilegeInfo = {grantablePrivileges: []};
-		var invitationInfo = $scope.invitationInfo = {invitee_email_addr: null, 
-														selected_nodespace_privileges: {contributor: false, editor: false, 
+		var invitationInfo = $scope.invitationInfo = {inviteeEmailAddr: null, 
+														selectedNodespacePrivileges: {contributor: false, editor: false, 
 																						moderator: false, admin: false}, 
 														invitation_msg: null};
 		var createStatus = $scope.createStatus = {encounteredCreateError: null, statusMessage: null};
@@ -683,13 +749,13 @@ trplApp.controller('CreateNodespaceInvitationCtrl',
 		var submitForm = function() {
 			var granted_nodespace_privs = [];
 			['contributor', 'editor', 'moderator', 'admin'].forEach(function(priv, idx, arr) {
-					if (invitationInfo.selected_nodespace_privileges[priv]) {
+					if (invitationInfo.selectedNodespacePrivileges[priv]) {
 						granted_nodespace_privs.push(priv);
 					}
 				}
 			);
 			
-			invCreateData = {invitee_email_addr: invitationInfo.invitee_email_addr, 
+			invCreateData = {invitee_email_addr: invitationInfo.inviteeEmailAddr, 
 								nodespace_privileges: granted_nodespace_privs,
 								invitation_msg: invitationInfo.invitation_msg,
 								nodespace_id: $stateParams.nodespaceId};
@@ -699,6 +765,114 @@ trplApp.controller('CreateNodespaceInvitationCtrl',
 		$scope.submitForm = submitForm;
 	}
 );
+
+//TODO: apply this centralization to other places with checkboxes
+//useful for turning a list into selected checkboxes when a map of keys to boolean values provides the ng-model mappings for a checkbox list
+var setBooleanKeysFromList = function(booleanObj, enabledList) {
+	Object.keys(booleanObj).forEach(function(elt, idx, arr) {
+			booleanObj[elt] = false;
+		}
+	);
+	enabledList.forEach(function(elt, idx, arr) {
+			booleanObj[elt] = true;
+		}
+	);
+};
+
+//useful for turning a list of checkbox values into a list of the selected checkboxes, assuming a map of boolean values to keys determines which boxes are checked
+var getListFromBooleanKeys = function(booleanObj) {
+	var enabledList = [];
+	Object.keys(booleanObj).forEach(function(key, idx, arr) {
+			if (booleanObj[key]) {
+				enabledList.push(key);
+			}
+		}
+	);
+	
+	return enabledList;
+};
+
+trplApp.controller('NodespaceUserAccessAlterCtrl',
+	function($scope, $stateParams, trplBackendSvc, trplEvents, trplConstants) {
+		$scope.$emit(trplEvents.selectUser, $stateParams.userId);
+		
+		$scope.isAlterAccess = true;
+		
+		$scope.localContent = {accessEnabledOption: i18n.t('ns_enabled_desc'), 
+							accessDisabledOption: i18n.t('ns_disabled_desc'),
+							headerContentKey: 'nodespace_access_edit_form_page_name',
+							updButtonContentKey: 'upd_nodespace_access_submit_btn'};
+		
+		var privilegeInfo = $scope.privilegeInfo = {grantablePrivileges: [], 
+													selectedNodespacePrivileges: {contributor: false, editor: false, 
+																					moderator: false, admin: false},
+													isEnabled: false};
+		
+		var statusMsgInfo = $scope.statusMsgInfo = {shouldShowMsg: false, statusType: null, statusMsg: ''};
+		
+		var getNodespaceAccessInfoCallbackFn = function(privInfo) {
+			privilegeInfo.grantablePrivileges = privInfo.grantable_privileges;
+			setBooleanKeysFromList(privilegeInfo.selectedNodespacePrivileges, privInfo.current_privileges);
+			privilegeInfo.isEnabled = privInfo.is_enabled;
+		};
+		trplBackendSvc.getNodespaceAccessInfo(getNodespaceAccessInfoCallbackFn, $stateParams.nodespaceId, $stateParams.userId);
+		
+		var updCallbackFn = getOperationStatusCallbackFn(statusMsgInfo, 'nodespace_access_update_failure_blurb', trplConstants);
+		var submitUpdAccessForm = function() {
+			var grantedNodespacePrivs = getListFromBooleanKeys(privilegeInfo.selectedNodespacePrivileges);
+			
+			nodespaceAccessUpdData = {nodespace_id: $stateParams.nodespaceId, 
+										edited_user_id: $stateParams.userId,
+										nodespace_privileges: grantedNodespacePrivs,
+										is_enabled: privilegeInfo.isEnabled};
+			trplBackendSvc.updateNodespaceAccess(updCallbackFn, nodespaceAccessUpdData);
+		};
+		$scope.submitUpdAccessForm = submitUpdAccessForm;
+		
+		var delCallbackFn = getOperationStatusCallbackFn(statusMsgInfo, 'nodespace_access_revoke_failure_blurb', trplConstants);
+		var submitDelAccessForm = function() {
+			nodespaceAccessDelData = {nodespace_id: $stateParams.nodespaceId, edited_user_id: $stateParams.userId};
+			trplBackendSvc.revokeNodespaceAccess(delCallbackFn, nodespaceAccessDelData);
+		};
+		$scope.submitDelAccessForm = submitDelAccessForm;
+	}
+);
+
+trplApp.controller('NodespaceUserAccessGrantCtrl',
+	function($scope, $stateParams, trplBackendSvc, trplEvents, trplConstants) {
+		$scope.$emit(trplEvents.selectUser, $stateParams.userId);
+		
+		$scope.isAlterAccess = false;
+		
+		$scope.localContent = {accessEnabledOption: i18n.t('ns_enabled_desc'), 
+							accessDisabledOption: i18n.t('ns_disabled_desc'),
+							headerContentKey: 'nodespace_access_grant_form_page_name',
+							updButtonContentKey: 'grant_nodespace_access_submit_btn'};
+		
+		//TODO: really, we should get the list of grantable privileges from a perm check.  but this can only be used by a super-user,
+		//and the backend method that actually grants access won't let improper access be granted anyway.  no easy/clean way to get this via 
+		//perm check at the moment.
+		var privilegeInfo = $scope.privilegeInfo = {grantablePrivileges: ['contributor', 'editor', 'moderator', 'admin'], 
+													selectedNodespacePrivileges: {contributor: false, editor: false, 
+																					moderator: false, admin: false},
+													isEnabled: false};
+		
+		var statusMsgInfo = $scope.statusMsgInfo = {shouldShowMsg: false, statusType: null, statusMsg: ''};
+		
+		var grantCallbackFn = getOperationStatusCallbackFn(statusMsgInfo, 'nodespace_access_grant_failure_blurb', trplConstants);
+		var submitUpdAccessForm = function() {
+			var grantedNodespacePrivs = getListFromBooleanKeys(privilegeInfo.selectedNodespacePrivileges);
+			
+			nodespaceAccessUpdData = {nodespace_id: $stateParams.nodespaceId, 
+										edited_user_id: $stateParams.userId,
+										nodespace_privileges: grantedNodespacePrivs,
+										is_enabled: privilegeInfo.isEnabled};
+			trplBackendSvc.grantNodespaceAccess(grantCallbackFn, nodespaceAccessUpdData);
+		};
+		$scope.submitUpdAccessForm = submitUpdAccessForm;
+	}
+);
+
 
 trplApp.directive('toptabs', 
 	function() {
@@ -722,6 +896,18 @@ trplApp.directive('sidetabs',
 			
 			controller: 'SelectPaneCtrl',
 			templateUrl: 'static/ng_partials/tab_side_container.html'
+		};
+	}
+);
+
+trplApp.directive('statusmessage',
+	function() {
+		return {
+			restrict: 'E',
+			replace: true,
+			scope: {shouldShowMsg: '@shouldShowMsg', statusType: '@statusType', statusMsg: '@statusMsg'},
+			
+			templateUrl: 'static/ng_partials/status_message_container.html'
 		};
 	}
 );
