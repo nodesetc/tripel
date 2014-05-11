@@ -1,3 +1,9 @@
+'''
+TODO: pages that return json should all:
+1) use the same field name for indicating whether an error was encountered
+2) stop returning status messages for now
+3) eventually return error and warning codes as needed
+'''
 import re
 import urllib
 import json
@@ -704,14 +710,14 @@ class user_invitation_decide(BasePage):
 #TODO: the invitation create(/decide?) workflows have largely the same logic and content, can probably centralize and have wrappers pass in differentiated form/field names
 class nodespace_invitation_create_form(BasePage, PrivilegesEditForm):
     @classmethod
+    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
+        return nodespace_invitation_create.is_allowed_to_use(target, actor, should_raise_insufficient_priv_ex)
+    
+    @classmethod
     def _get_grantable_privileges(cls, nodespace, user):
         ns_access_for_user = nodespace.get_nodespace_access_for_user(PGDB, user.user_id)
         grantable_privileges = (ns_access_for_user.nodespace_privileges if ns_access_for_user is not None else tc.NodespacePrivilegeSet()).get_grantable_privileges()
         return grantable_privileges
-    
-    @classmethod
-    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return nodespace_invitation_create.is_allowed_to_use(target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
     def get_ns_inv_create_form(cls, nodespace, user):
@@ -1240,33 +1246,49 @@ class user_list_all(BasePage, ListTablePage):
 
 class metaspace_access_edit_form(BasePage, PrivilegesEditForm):
     @classmethod
+    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
+        return metaspace_access_edit.is_allowed_to_use(target, actor, should_raise_insufficient_priv_ex)
+    
+    @classmethod
     def _get_content_summary(cls, user, extra_display_info):
         if user is None:
             return None
         return MSGS.lookup('metaspace_access_edit_form_smry', {'username': extra_display_info['edited_user'].username})
     
     @classmethod
-    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return metaspace_access_edit.is_allowed_to_use(target, actor, should_raise_insufficient_priv_ex)
+    def _get_grantable_privileges(cls, editing_user):
+        return editing_user.metaspace_privileges.get_grantable_privileges()
     
     @classmethod
     def get_ms_priv_edit_form(cls, edited_user, editing_user):
-        grantable_privileges = editing_user.metaspace_privileges.get_grantable_privileges()
-        selected_privs = edited_user.metaspace_privileges
+        grantable_privileges = cls._get_grantable_privileges(editing_user)
+        selected_privileges = edited_user.metaspace_privileges
         is_enabled_radio_opts = [(True, MSGS.lookup('ms_enabled_desc')), (False, MSGS.lookup('ms_disabled_desc'))]
-        return web.form.Form(*(cls.metaspace_privilege_select_elts(grantable_privileges=grantable_privileges, selected_privileges=selected_privs) +
+        return web.form.Form(*(cls.metaspace_privilege_select_elts(grantable_privileges=grantable_privileges, selected_privileges=selected_privileges) +
                             [web.form.Radio('is_enabled', is_enabled_radio_opts, value=edited_user.is_enabled, description=MSGS.lookup('user_is_enabled')),
                              web.form.Button(name=MSGS.lookup('update_ms_privs_submit_btn'))]))
     
     @classmethod
-    def render_page(cls, ms_session):
+    def _render_page_helper(cls, ms_session):
         editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         edited_user = tc.User.get_existing_user_by_id(PGDB, web.input().get('edited_user_id'))
         cls.is_allowed_to_use(edited_user, editing_user)
-        
+        return editing_user, edited_user
+    
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        editing_user, edited_user = cls._render_page_helper(ms_session)
         edited_user_id_hidden_html = web.form.Hidden(name='edited_user_id', value=edited_user.user_id).render()
         ms_priv_edit_form_html = '%s\n%s' % (edited_user_id_hidden_html, cls.get_ms_priv_edit_form(edited_user, editing_user)().render())
         return cls.wrap_content(RENDER.basic_form_template(ms_priv_edit_form_html, 'ms_priv_edit_form', metaspace_access_edit.build_page_url()), user=editing_user, extra_display_info={'edited_user': edited_user})
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        editing_user, edited_user = cls._render_page_helper(ms_session)
+        grantable_privileges = sorted(cls._get_grantable_privileges(editing_user), tc.MetaspacePrivilegeSet.comparator)
+        current_privileges = list(edited_user.metaspace_privileges)
+        is_enabled = edited_user.is_enabled
+        return get_json_string({'grantable_privileges': grantable_privileges, 'current_privileges': current_privileges, 'is_enabled': is_enabled})
 
 class metaspace_access_edit(BasePage):
     @classmethod
@@ -1274,7 +1296,7 @@ class metaspace_access_edit(BasePage):
         return MS_PRVLG_CHKR.is_allowed_to_do(DB_TUPLE, MS_PRVLG_CHKR.ALTER_USER_ACCESS_ACTION, target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
-    def render_page(cls, ms_session):
+    def _render_page_helper(cls, ms_session):
         editing_user = tc.User.get_existing_user_by_id(PGDB, ms_session.user_id)
         edited_user = tc.User.get_existing_user_by_id(PGDB, web.input().get('edited_user_id'))
         cls.is_allowed_to_use(edited_user, editing_user)
@@ -1282,9 +1304,23 @@ class metaspace_access_edit(BasePage):
         new_metaspace_privileges = tc.MetaspacePrivilegeSet.create_from_list_of_strings(web.input(metaspace_privileges=[]).get('metaspace_privileges'))
         edited_user.set_and_save_metaspace_access(PGDB, web.input().get('is_enabled'), new_metaspace_privileges, editing_user.user_id)
         
+        return edited_user
+        
+    @classmethod
+    def render_page_full_html(cls, ms_session):
+        edited_user = cls._render_page_helper(ms_session)
         web.found(user_view.build_page_url(query_params={'viewed_user_id': edited_user.user_id}))
+    
+    @classmethod
+    def render_page_json(cls, ms_session):
+        edited_user = cls._render_page_helper(ms_session)
+        return get_json_string({'encountered_update_error': False, 'status_message': ''})
 
 class nodespace_access_edit_form(BasePage, PrivilegesEditForm):
+    @classmethod
+    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
+        return nodespace_access_edit.is_allowed_to_use(target, actor, should_raise_insufficient_priv_ex)
+    
     @classmethod
     def _get_grantable_privileges(cls, nodespace, user):
         ns_access_for_user = nodespace.get_nodespace_access_for_user(PGDB, user.user_id)
@@ -1299,10 +1335,6 @@ class nodespace_access_edit_form(BasePage, PrivilegesEditForm):
         nodespace = extra_display_info['nodespace']
         edited_user = extra_display_info['edited_user']
         return MSGS.lookup('nodespace_access_edit_form_smry', {'nodespace_name': nodespace.nodespace_name, 'username': edited_user.username})
-    
-    @classmethod
-    def is_allowed_to_use(cls, target, actor, should_raise_insufficient_priv_ex=True):
-        return nodespace_access_edit.is_allowed_to_use(target, actor, should_raise_insufficient_priv_ex)
     
     @classmethod
     def get_ns_priv_edit_form(cls, edited_user, editing_user, nodespace):
