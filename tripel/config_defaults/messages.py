@@ -27,6 +27,7 @@ class Messages(object):
                 'user_list_all_page_name': 'list all users',
                 'metaspace_access_edit_form_page_name': 'edit metaspace access',
                 'nodespace_access_edit_form_page_name': 'edit nodespace access',
+                'nodespace_access_grant_form_page_name': 'grant nodespace access',
                 'metaspace_command_list_page_name': 'metaspace commands',
                 'manage_logged_in_user_tab_name': 'manage logged in user',
                 
@@ -173,6 +174,8 @@ class Messages(object):
                 
                 'edit_other_usr_link_disp_txt': 'edit user info for %(username)s',
                 'edit_other_usr_privs_link_disp_txt': 'alter metaspace privileges for %(username)s',
+                'edit_usr_metaspace_privs_link_disp_txt': 'alter metaspace privileges',
+                'view_usr_security_audit_log_link_disp_txt': 'view security audit log',
                 
                 'chg_pass_other_user_disp_txt': 'change password for %(username)s',
                 
@@ -196,7 +199,19 @@ class Messages(object):
                 
                 'nodespace_show_all_label': 'back to nodespace list',
                 'users_show_all_label': 'back to user list',
-                'nodespace_grant_access_tab_label': 'add user to nodespace'
+                'nodespace_grant_access_tab_label': 'add user to nodespace',
+                'nodespace_access_update_success_blurb': 'successfully updated nodespace access for user',
+                'nodespace_access_update_failure_blurb': 'failed to update nodespace access for user',
+                'nodespace_access_revoke_success_blurb': 'successfully revoked nodespace access for user',
+                'nodespace_access_revoke_failure_blurb': 'failed to revoke nodespace access for user',
+                'nodespace_access_grant_success_blurb': 'successfully granted nodespace access for user',
+                'nodespace_access_grant_failure_blurb': 'failed to grant nodespace access for user',
+                'upd_nodespace_access_submit_btn': 'update nodespace access',
+                'grant_nodespace_access_submit_btn': 'grant nodespace access',
+                'del_nodespace_access_submit_btn': 'revoke nodespace access',
+                
+                'metaspace_access_update_success_blurb': 'successfully updated metaspace access for user',
+                'metaspace_access_update_failure_blurb': 'failed to update metaspace access for user',
             }
         }
     }
