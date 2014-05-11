@@ -1,6 +1,8 @@
 <div class="tab-pane active">
+    <statusmessage should-show-msg="{{statusMsgInfo.shouldShowMsg}}" status-type="{{statusMsgInfo.statusType}}" status-msg="{{statusMsgInfo.statusMsg}}"></statusmessage>
+    
     <div ng-show="userListData.selectedRowId != null">
-        <a href="{{urlBase}}" ng-click="unselectUser()">&#10218; <span ng-i18next="users_show_all_label"></span></a>
+        <a href="javascript:void(0)" ng-click="unselectUser()">&#10218; <span ng-i18next="users_show_all_label"></span></a>
         <br><br>
     </div>
     
@@ -16,7 +18,7 @@
         
         <tbody>
             <tr ng-repeat="user in userListData.rowList" ng-show="userListData.selectedRowId == null || userListData.selectedRowId == user.user_id">
-                <td><a href="{{urlBase + '/' + user.user_id}}">{{user.username}}</a>&nbsp;</td>
+                <td><a href="{{urlHashBase + '/' + user.user_id}}">{{user.username}}</a>&nbsp;</td>
                 <td>{{user.email_addr}}&nbsp;</td>
                 <td>{{user.user_statement}}&nbsp;</td>
                 <td>{{user.nodespace_privileges}}&nbsp;</td>

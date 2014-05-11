@@ -1,13 +1,4 @@
-<!--TODO: show name of user being edited -->
-
-<div ng-show="updateStatus.encounteredUpdateError != null">
-    <div class="alert alert-error" ng-show="updateStatus.encounteredUpdateError == true">
-        <span ng-i18next="user_info_edit_error_msg"></span>
-    </div>
-    <div class="alert alert-success" ng-show="updateStatus.encounteredUpdateError == false">
-        <span ng-i18next="user_info_edit_success_msg"></span>
-    </div>
-</div>
+<statusmessage should-show-msg="{{statusMsgInfo.shouldShowMsg}}" status-type="{{statusMsgInfo.statusType}}" status-msg="{{statusMsgInfo.statusMsg}}"></statusmessage>
 
 <form class="form-inline" ng-submit="submitEditForm();">
     

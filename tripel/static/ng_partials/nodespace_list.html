@@ -1,6 +1,6 @@
 <div class="tab-pane active">
     <div ng-show="nodespaceListData.selectedRowId != null">
-        <a href="{{urlBase}}" ng-click="unselectNodespace()">&#10218; <span ng-i18next="nodespace_show_all_label"></span></a>
+        <a href="javascript:void(0)" ng-click="unselectNodespace()">&#10218; <span ng-i18next="nodespace_show_all_label"></span></a>
         <br><br>
     </div>
     
@@ -12,7 +12,7 @@
         
         <tbody>
             <tr ng-repeat="nodespace in nodespaceListData.rowList" ng-show="nodespaceListData.selectedRowId == null || nodespaceListData.selectedRowId == nodespace.nodespace_id">
-                <td><a href="{{urlBase + '/' + nodespace.nodespace_id}}">{{nodespace.nodespace_name}}</a> &nbsp;</td>
+                <td><a href="{{urlHashBase + '/' + nodespace.nodespace_id}}">{{nodespace.nodespace_name}}</a> &nbsp;</td>
                 <td>{{nodespace.nodespace_description}} &nbsp;</td>
             </tr>
         </tbody>

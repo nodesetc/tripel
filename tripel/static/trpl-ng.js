@@ -6,26 +6,37 @@ i18n.init({fallbackLng: 'en-US',
 			dynamicLoad: false});
 
 
+//any controller name that's used in a comparison should be a constant (e.g. used in a comparison in a 
+//function that returns actual controller functions which vary based on controller name, as in user list)
 //TODO: maybe all controller names should be constants?  these just get re-used more than most, so it made more sense here.
 var userListCtrlNames = {all: 'UserListAllCtrl',
 					nodespace: 'UserListNodespaceCtrl',
 					nodespaceAdmin: 'UserListNodespaceAdminCtrl',
 					nodespaceAbsent: 'UserListNodespaceAbsentCtrl'};
 
+var editUserInfoCtrlNames = {loggedIn: 'EditLoggedInUserInfoCtrl', other: 'EditOtherUserInfoCtrl'};
+
+var changePasswordCtrlNames = {loggedIn: 'ChangePasswordLoggedInUserCtrl', other: 'ChangePasswordOtherUserCtrl'};
+
+//TODO: maybe all constants should just be in a trplConstants dict that's not a trplApp value.  can't 
+//inject the value in all places, and the current approach of sometimes using trplConstants is inconsistent.
+//though it is nice to be able to inject it where possible.
 //TODO: should avoid also defining rootPath here, since it's already defined in python
 trplApp.value('trplConstants', {rootPath: '/tripel',
 								dateFormat: 'yyyy-MM-dd HH:mm:ss Z',
 								statusTypeError: 'error',
 								statusTypeSuccess: 'success',
 								statusTypeWarning: 'warning',
-								userListCtrlNames: userListCtrlNames});
-//TODO: maybe all constants should just be in a trplConstants dict that's not a trplApp value.  can't 
-//inject the value in all places, and the current approach of sometimes using trplConstants is inconsistent.
-//though it is nice to be able to inject it where possible.
-
+								userListCtrlNames: userListCtrlNames,
+								editUserInfoCtrlNames: editUserInfoCtrlNames,
+								changePasswordCtrlNames: changePasswordCtrlNames});
 
 trplApp.value('trplEvents', {selectNodespace: 'selectNodespace',
-								selectUser: 'selectUser'});
+								selectUser: 'selectUser',
+								userEdited: 'refreshUserList',
+								userAccessRevoked: 'userAccessRevoked',
+								userAccessGranted: 'userAccessGranted',
+								nodespaceEdited: 'refreshNodespaceList'});
 
 
 trplApp.config(
@@ -95,18 +106,40 @@ trplApp.config(
 					controller: 'SelectUserCtrl',
 					templateUrl: 'static/ng_partials/user_view_msadmin.html'
 				})
+			.state('appView.metaspaceCmds.userListAll.selectUser.editUserInfo', {
+					url: '/user_info_edit',
+					controller: editUserInfoCtrlNames.other,
+					templateUrl: 'static/ng_partials/user_info_edit.html'
+				})
+			.state('appView.metaspaceCmds.userListAll.selectUser.changeUserPassword', {
+					url: '/user_change_password',
+					controller: changePasswordCtrlNames.other,
+					templateUrl: 'static/ng_partials/user_change_password.html'
+				})
+			.state('appView.metaspaceCmds.userListAll.selectUser.editMetaspaceAccess', {
+					url: '/user_metaspace_access_edit',
+					controller: 'MetaspaceUserAccessEditCtrl',
+					templateUrl: 'static/ng_partials/user_metaspace_access_edit.html'
+				})
+			
+			.state('appView.metaspaceCmds.userListAll.selectUser.viewSecurityAuditLog', {
+					url: '/user_metaspace_security_audit_log',
+					controller: '',
+					templateUrl: 'static/ng_partials/user_metaspace_security_audit_log.html'
+				})
+			
 			.state('appView.manageLoggedInUser', {
 					url: '/manage_logged_in_user',
 					templateUrl: 'static/ng_partials/manage_logged_in_user.html'
 				})
 			.state('appView.manageLoggedInUser.editUserInfo', {
 					url: '/user_info_edit',
-					controller: 'EditUserInfoCtrl',
+					controller: editUserInfoCtrlNames.loggedIn,
 					templateUrl: 'static/ng_partials/user_info_edit.html'
 				})
 			.state('appView.manageLoggedInUser.changeUserPassword', {
 					url: '/user_change_password',
-					controller: 'ChangePasswordCtrl',
+					controller: changePasswordCtrlNames.loggedIn,
 					templateUrl: 'static/ng_partials/user_change_password.html'
 				})
 			.state('appView.nodespaceListAccessible', {
@@ -153,8 +186,10 @@ trplApp.config(
 	}
 );
 
+
 trplApp.service('trplBackendSvc',
 	function($http, trplConstants) {
+		//TODO: isAllowedToUse needs to take params
 		this.isAllowedToUse = function(pageName, callbackFn) {
 			var reqParams = {modeselektion: 'check_is_allowed_to_use'};
 			var reqUri = trplConstants.rootPath+'/'+pageName;
@@ -187,7 +222,7 @@ trplApp.service('trplBackendSvc',
 			$http(reqConfig)
 				.success(successCallbackFn)
 				.error(errorCallbackFn);
-		}
+		};
 		
 		this.reqObjList = function(reqMethod, callbackFn, subUrl, params) {
 			var successCallbackFn = function(respData, status, headers, config) {
@@ -312,8 +347,16 @@ trplApp.service('trplBackendSvc',
 			return this.postReq(callbackFn, '/nodespace_access_revoke', nodespaceAccessDelData);
 		};
 		
-		this.grantNodespaceAccess =  function(callbackFn, nodespaceAccessGrantData) {
+		this.grantNodespaceAccess = function(callbackFn, nodespaceAccessGrantData) {
 			return this.postReq(callbackFn, '/nodespace_access_grant', nodespaceAccessGrantData);
+		};
+		
+		this.updateMetaspaceAccess = function(callbackFn, metaspaceAccessUpdData) {
+			return this.postReq(callbackFn, '/metaspace_access_edit', metaspaceAccessUpdData);
+		};
+		
+		this.getMetaspaceAccessInfo = function(callbackFn, userId) {
+			return this.getObj(callbackFn, '/metaspace_access_edit_form', {edited_user_id: userId});
 		};
 	}
 );
@@ -322,12 +365,12 @@ trplApp.service('paneListSvc',
 	function(trplBackendSvc, $stateParams) {
 		this.getPaneList = function(paneListType) {
 			switch(paneListType) {
-				//TODO: urlBase values should come from state info so we're not repeating the definition here
+				//TODO: urlHashBase values should come from state info so we're not repeating the definition here
 				case 'app-views':
-					var urlBase = '#/app_view/';
-					var panes = [{title: i18n.t('metaspace_command_list_smry'), url: urlBase+'metaspace_cmds', isSelected: false, isUsable: false},
-							{title: i18n.t('manage_logged_in_user_tab_name'), url: urlBase+'manage_logged_in_user', isSelected: false, isUsable: true},
-							{title: i18n.t('accessible_nodespaces_tab_name'), url: urlBase+'nodespaces_accessible', isSelected: false, isUsable: true}];
+					var urlHashBase = '#/app_view/';
+					var panes = [{title: i18n.t('metaspace_command_list_smry'), url: urlHashBase+'metaspace_cmds', isSelected: false, isUsable: false},
+							{title: i18n.t('manage_logged_in_user_tab_name'), url: urlHashBase+'manage_logged_in_user', isSelected: false, isUsable: true},
+							{title: i18n.t('accessible_nodespaces_tab_name'), url: urlHashBase+'nodespaces_accessible', isSelected: false, isUsable: true}];
 					
 					var callbackFn = function(isAllowedToUseMetaspaceCmds) {
 						panes[0].isUsable = isAllowedToUseMetaspaceCmds;
@@ -338,11 +381,11 @@ trplApp.service('paneListSvc',
 					return panes;
 					
 				case 'metaspace-commands':
-					var urlBase = '#/app_view/metaspace_cmds/';
-					var panes = [{title: i18n.t('nodespace_create_form_page_name'), url: urlBase+'nodespace_create', isSelected: false, isUsable: false},
-							{title: i18n.t('user_invitation_create_form_page_name'), url: urlBase+'user_invitation_create', isSelected: false, isUsable: false},
-							{title: i18n.t('nodespace_list_all_page_name'), url: urlBase+'nodespaces_all', isSelected: false, isUsable: false},
-							{title: i18n.t('user_list_all_page_name'), url: urlBase+'users', isSelected: false, isUsable: false}];
+					var urlHashBase = '#/app_view/metaspace_cmds/';
+					var panes = [{title: i18n.t('nodespace_create_form_page_name'), url: urlHashBase+'nodespace_create', isSelected: false, isUsable: false},
+							{title: i18n.t('user_invitation_create_form_page_name'), url: urlHashBase+'user_invitation_create', isSelected: false, isUsable: false},
+							{title: i18n.t('nodespace_list_all_page_name'), url: urlHashBase+'nodespaces_all', isSelected: false, isUsable: false},
+							{title: i18n.t('user_list_all_page_name'), url: urlHashBase+'users', isSelected: false, isUsable: false}];
 					
 					var callbackFn = function(isAllowedToUseCmd, pane) {
 						pane.isUsable = isAllowedToUseCmd;
@@ -357,18 +400,18 @@ trplApp.service('paneListSvc',
 					return panes
 				
 				case 'manage-user':
-					var urlBase = '#/app_view/manage_logged_in_user/';
-					var panes = [{title: i18n.t('user_info_edit_form_page_name'), url: urlBase+'user_info_edit', isSelected: false, isUsable: true},
-							{title: i18n.t('user_change_pass_form_page_name'), url: urlBase+'user_change_password', isSelected: false, isUsable: true}];
+					var urlHashBase = '#/app_view/manage_logged_in_user/';
+					var panes = [{title: i18n.t('user_info_edit_form_page_name'), url: urlHashBase+'user_info_edit', isSelected: false, isUsable: true},
+							{title: i18n.t('user_change_pass_form_page_name'), url: urlHashBase+'user_change_password', isSelected: false, isUsable: true}];
 					
 					return panes;
 				
 				case 'nodespace-view':
-					var urlBase = '#/app_view/nodespaces_accessible/' + $stateParams.nodespaceId + '/';
-					var panes = [{title: i18n.t('nodespace_browse_tab_label'), url: urlBase+'browse_nodes', isSelected: false, isUsable: true},
-								{title: i18n.t('nodespace_edit_form_page_name'), url: urlBase+'nodespace_info_edit', isSelected: false, isUsable: false},
-								{title: i18n.t('nodespace_user_list_tab_label'), url: urlBase+'user_list_nodespace', isSelected: false, isUsable: false},
-								{title: i18n.t('nodespace_invitation_create_form_page_name'), url: urlBase+'nodespace_invitation_create', isSelected: false, isUsable: false}];
+					var urlHashBase = '#/app_view/nodespaces_accessible/' + $stateParams.nodespaceId + '/';
+					var panes = [{title: i18n.t('nodespace_browse_tab_label'), url: urlHashBase+'browse_nodes', isSelected: false, isUsable: true},
+								{title: i18n.t('nodespace_edit_form_page_name'), url: urlHashBase+'nodespace_info_edit', isSelected: false, isUsable: false},
+								{title: i18n.t('nodespace_user_list_tab_label'), url: urlHashBase+'user_list_nodespace', isSelected: false, isUsable: false},
+								{title: i18n.t('nodespace_invitation_create_form_page_name'), url: urlHashBase+'nodespace_invitation_create', isSelected: false, isUsable: false}];
 					
 					var callbackFn = function(nodespaceViewResult) {
 						var nodespaceViewCmdPerms = nodespaceViewResult.perms_for_user;
@@ -382,10 +425,10 @@ trplApp.service('paneListSvc',
 					return panes;
 				
 				case 'nodespace-view-admin':
-					var urlBase = '#/app_view/metaspace_cmds/nodespaces_all/' + $stateParams.nodespaceId + '/';
-					var panes = [{title: i18n.t('nodespace_edit_form_page_name'), url: urlBase+'nodespace_info_edit', isSelected: false, isUsable: false},
-								{title: i18n.t('nodespace_user_list_tab_label'), url: urlBase+'user_list_nodespace', isSelected: false, isUsable: false},
-								{title: i18n.t('nodespace_grant_access_tab_label'), url: urlBase+'nodespace_grant_access', isSelected: false, isUsable: false}];
+					var urlHashBase = '#/app_view/metaspace_cmds/nodespaces_all/' + $stateParams.nodespaceId + '/';
+					var panes = [{title: i18n.t('nodespace_edit_form_page_name'), url: urlHashBase+'nodespace_info_edit', isSelected: false, isUsable: false},
+								{title: i18n.t('nodespace_user_list_tab_label'), url: urlHashBase+'user_list_nodespace', isSelected: false, isUsable: false},
+								{title: i18n.t('nodespace_grant_access_tab_label'), url: urlHashBase+'nodespace_grant_access', isSelected: false, isUsable: false}];
 					
 					var callbackFn = function(nodespaceViewResult) {
 						var nodespaceViewCmdPerms = nodespaceViewResult.perms_for_user;
@@ -398,6 +441,31 @@ trplApp.service('paneListSvc',
 					
 					return panes;
 				
+				case 'user-view-admin':
+					var urlHashBase = '#/app_view/metaspace_cmds/users/' + $stateParams.userId + '/';
+					/*TODO: make the perm checks work and then uncomment this and kill the panes declaration that sets isUsable to true
+					var panes = [{title: i18n.t('user_info_edit_form_page_name'), url: urlHashBase+'user_info_edit', isSelected: false, isUsable: false},
+								{title: i18n.t('user_change_pass_form_page_name'), url: urlHashBase+'user_change_password', isSelected: false, isUsable: false},
+								{title: i18n.t('edit_usr_metaspace_privs_link_disp_txt'), url: urlHashBase+'user_metaspace_access_edit', isSelected: false, isUsable: false},
+								{title: i18n.t('view_usr_security_audit_log_link_disp_txt'), url: urlHashBase+'user_metaspace_security_audit_log', isSelected: false, isUsable: false}];
+					
+					var callbackFn = function(isAllowedToUseCmd, pane) {
+						pane.isUsable = isAllowedToUseCmd;
+					};
+					
+					['user_info_edit', 'user_change_password', 'user_metaspace_access_edit', 'user_metaspace_security_audit_log'].forEach(function(cmdName, idx, arr) {
+							var paneCallbackFn = function(isAllowedToUseCmd) { callbackFn(isAllowedToUseCmd, panes[idx]); };
+							//trplBackendSvc.isAllowedToUse(cmdName, paneCallbackFn);
+						}
+					);
+					*/
+					var panes = [{title: i18n.t('user_info_edit_form_page_name'), url: urlHashBase+'user_info_edit', isSelected: false, isUsable: true},
+								{title: i18n.t('user_change_pass_form_page_name'), url: urlHashBase+'user_change_password', isSelected: false, isUsable: true},
+								{title: i18n.t('edit_usr_metaspace_privs_link_disp_txt'), url: urlHashBase+'user_metaspace_access_edit', isSelected: false, isUsable: true},
+								{title: i18n.t('view_usr_security_audit_log_link_disp_txt'), url: urlHashBase+'user_metaspace_security_audit_log', isSelected: false, isUsable: true}];
+					
+					return panes
+				
 				default:
 					return [];
 			}
@@ -405,31 +473,25 @@ trplApp.service('paneListSvc',
 	}
 );
 
-trplApp.controller('SelectPaneCtrl', 
-	function($scope, $element, $state, paneListSvc) {
-		$scope.paneListType = $element.attr('pane-list-type');
-		
-		var panes = $scope.panes = paneListSvc.getPaneList($scope.paneListType);
-		
-		$scope.select = function(pane) {
-			angular.forEach(panes, function(curPane) {
-				curPane.isSelected = false;
-			});
-			pane.isSelected = true;
-		};
-	}
-);
 
 //TODO: refactor ad-hoc status messages to use this and the corresponding partial
-var getOperationStatusCallbackFn = function(statusMsgInfoObj, failureTextKey, trplConstants) {
+var getOperationStatusMsgCallbackFn = function(statusMsgInfoObj, trplConstants, msgContentKeys, useMsgContentKeys) {
 	return function(opResult) {
 		statusMsgInfoObj.shouldShowMsg = true;
 		if (opResult == null) {
 			statusMsgInfoObj.statusType = trplConstants.statusTypeError;
-			statusMsgInfoObj.statusMsg = i18n.t(failureTextKey);
 		} else {
 			statusMsgInfoObj.statusType = (opResult.encountered_update_error == true) ? trplConstants.statusTypeError : trplConstants.statusTypeSuccess;
+		}
+		
+		if (!useMsgContentKeys && opResult.status_message != undefined) {
 			statusMsgInfoObj.statusMsg = opResult.status_message;
+		} else {
+			if (statusMsgInfoObj.statusType == trplConstants.statusTypeError) {
+				statusMsgInfoObj.statusMsg = i18n.t(msgContentKeys.failureContentKey);
+			} else {
+				statusMsgInfoObj.statusMsg = i18n.t(msgContentKeys.successContentKey);
+			}
 		}
 	};
 };
@@ -446,16 +508,59 @@ var getSelectRowFn = function(tableListDataObj) {
 	};
 };
 
-var getUnselectRowFn = function(tableListDataObj) {
+var getUnselectRowFn = function(tableListDataObj, unselectUrlHash) {
 	return function() {
 		tableListDataObj.selectedRowId = null;
+		window.location.hash = unselectUrlHash;
 	}
 };
 
-var getNodespaceListCtrlFn = function(urlBase, nodespaceListFnName) {
+//TODO: apply this centralization to other places with checkboxes
+//useful for turning a list into selected checkboxes when a map of keys to boolean values provides the ng-model mappings for a checkbox list
+var setBooleanKeysFromList = function(booleanObj, enabledList) {
+	Object.keys(booleanObj).forEach(function(elt, idx, arr) {
+			booleanObj[elt] = false;
+		}
+	);
+	enabledList.forEach(function(elt, idx, arr) {
+			booleanObj[elt] = true;
+		}
+	);
+};
+
+//useful for turning a list of checkbox values into a list of the selected checkboxes, assuming a map of boolean values to keys determines which boxes are checked
+var getListFromBooleanKeys = function(booleanObj) {
+	var enabledList = [];
+	Object.keys(booleanObj).forEach(function(key, idx, arr) {
+			if (booleanObj[key]) {
+				enabledList.push(key);
+			}
+		}
+	);
+	
+	return enabledList;
+};
+
+
+trplApp.controller('SelectPaneCtrl', 
+	function($scope, $element, $state, paneListSvc) {
+		$scope.paneListType = $element.attr('pane-list-type');
+		
+		var panes = $scope.panes = paneListSvc.getPaneList($scope.paneListType);
+		
+		$scope.select = function(pane) {
+			angular.forEach(panes, function(curPane) {
+				curPane.isSelected = false;
+			});
+			pane.isSelected = true;
+		};
+	}
+);
+
+var getNodespaceListCtrlFn = function(urlHashBase, nodespaceListFnName) {
 	//note that the function returned here assumes it'll get its params injected by angular upon invocation.  it's intended to be used to build controllers.
 	return function($scope, trplBackendSvc, trplEvents) {
-		$scope.urlBase = urlBase;
+		$scope.urlHashBase = urlHashBase;
 		
 		var nodespaceListData = $scope.nodespaceListData = {selectedRowId: null, rowList: null};
 		var callbackFn = getTableListCallbackFn(nodespaceListData);
@@ -464,11 +569,15 @@ var getNodespaceListCtrlFn = function(urlBase, nodespaceListFnName) {
 		var selectNodespaceFn = getSelectRowFn(nodespaceListData);
 		$scope.$on(trplEvents.selectNodespace, selectNodespaceFn);
 		
-		var unselectNodespaceFn = getUnselectRowFn(nodespaceListData);
+		var unselectNodespaceFn = getUnselectRowFn(nodespaceListData, urlHashBase);
 		$scope.unselectNodespace = unselectNodespaceFn;
+		
+		var listRefreshFn = function(eventObj, nodespaceId) { 
+			trplBackendSvc[nodespaceListFnName](callbackFn);
+		};
+		$scope.$on(trplEvents.nodespaceEdited, listRefreshFn);
 	};
 };
-
 trplApp.controller('NodespaceListAllCtrl', getNodespaceListCtrlFn('#/app_view/metaspace_cmds/nodespaces_all', 'getAllNodespaces'));
 trplApp.controller('NodespaceListAccessibleCtrl', getNodespaceListCtrlFn('#/app_view/nodespaces_accessible', 'getAccessibleNodespaces'));
 
@@ -483,22 +592,25 @@ function getUserListCtrlFn(controllerName) {
 	return function($scope, $stateParams, $filter, trplBackendSvc, trplConstants, trplEvents) {
 		switch(controllerName) {
 			case trplConstants.userListCtrlNames.all:
-				$scope.urlBase = '#/app_view/metaspace_cmds/users';
+				$scope.urlHashBase = '#/app_view/metaspace_cmds/users';
 				break;
 			case trplConstants.userListCtrlNames.nodespace:
-				$scope.urlBase = '#/app_view/nodespaces_accessible/'+$stateParams.nodespaceId+'/user_list_nodespace';
+				$scope.urlHashBase = '#/app_view/nodespaces_accessible/'+$stateParams.nodespaceId+'/user_list_nodespace';
 				break;
 			case trplConstants.userListCtrlNames.nodespaceAdmin:
-				$scope.urlBase = '#/app_view/metaspace_cmds/nodespaces_all/'+$stateParams.nodespaceId+'/user_list_nodespace';
+				$scope.urlHashBase = '#/app_view/metaspace_cmds/nodespaces_all/'+$stateParams.nodespaceId+'/user_list_nodespace';
 				break;
 			case trplConstants.userListCtrlNames.nodespaceAbsent:
-				$scope.urlBase = '#/app_view/metaspace_cmds/nodespaces_all/'+$stateParams.nodespaceId+'/nodespace_grant_access';
+				$scope.urlHashBase = '#/app_view/metaspace_cmds/nodespaces_all/'+$stateParams.nodespaceId+'/nodespace_grant_access';
 				break;
 			default:
-				$scope.urlBase = '#/';
+				$scope.urlHashBase = '#/';
 		}
 		
 		$scope.dateFormat = trplConstants.dateFormat;
+		
+		var statusMsgInfo = $scope.statusMsgInfo = {shouldShowMsg: false, statusType: null, statusMsg: ''};
+		
 		
 		var userListData = $scope.userListData = {selectedRowId: null, rowList: null};
 		var callbackFn = function(userList) {
@@ -518,31 +630,66 @@ function getUserListCtrlFn(controllerName) {
 								});
 			}
 		};
+		
+		var listRefreshFn;
 		switch (controllerName) {
 			case trplConstants.userListCtrlNames.all:
-				trplBackendSvc.getAllUsers(callbackFn);
+				listRefreshFn = function() { trplBackendSvc.getAllUsers(callbackFn); };
 				break;
 			case trplConstants.userListCtrlNames.nodespaceAbsent:
-				trplBackendSvc.getNodespaceAbsentUsers(callbackFn, $stateParams.nodespaceId);
+				listRefreshFn = function() { trplBackendSvc.getNodespaceAbsentUsers(callbackFn, $stateParams.nodespaceId); };
 				break;
 			case trplConstants.userListCtrlNames.nodespace:
 			case trplConstants.userListCtrlNames.nodespaceAdmin:
-				trplBackendSvc.getNodespaceUsers(callbackFn, $stateParams.nodespaceId);
+				listRefreshFn = function() { trplBackendSvc.getNodespaceUsers(callbackFn, $stateParams.nodespaceId); };
 				break;
 		}
 		
-		var selectUserFn = getSelectRowFn(userListData);
-		$scope.$on(trplEvents.selectUser, selectUserFn);
 		
-		var unselectUserFn = getUnselectRowFn(userListData);
+		var selectUserFn = getSelectRowFn(userListData);
+		
+		var unselectUserFn = getUnselectRowFn(userListData, $scope.urlHashBase);
+		
+		var refreshListAndUnselectUserFn = function() {
+			listRefreshFn();
+			unselectUserFn();
+		};
+		
+		var grantStatusMsgContentKeys = {successContentKey: 'nodespace_access_grant_success_blurb', failureContentKey: 'nodespace_access_grant_failure_blurb'};
+		var grantStatusMsgCallbackFn = getOperationStatusMsgCallbackFn(statusMsgInfo, trplConstants, grantStatusMsgContentKeys, true);
+		var showAccessGrantedStatusFn = function(eventObj, userId, grantResult) {
+			if (grantResult.encountered_update_error == false) {
+				refreshListAndUnselectUserFn();
+				grantStatusMsgCallbackFn(grantResult);
+			}
+		};
+		
+		var delStatusMsgContentKeys = {successContentKey: 'nodespace_access_revoke_success_blurb', failureContentKey: 'nodespace_access_revoke_failure_blurb'};
+		var delStatusMsgCallbackFn = getOperationStatusMsgCallbackFn(statusMsgInfo, trplConstants, delStatusMsgContentKeys, true);
+		var showAccessRevokedStatusFn = function(eventObj, userId, delResult) {
+			if (delResult.encountered_update_error == false) {
+				refreshListAndUnselectUserFn();
+				delStatusMsgCallbackFn(delResult);
+			}
+		};
+		
+		
 		$scope.unselectUser = unselectUserFn;
+		
+		$scope.$on(trplEvents.selectUser, selectUserFn);
+		$scope.$on(trplEvents.userAccessGranted, showAccessGrantedStatusFn);
+		$scope.$on(trplEvents.userAccessRevoked, showAccessRevokedStatusFn);
+		
+		
+		listRefreshFn();
 	};
 }
-
 //register each type of user list controller
-[userListCtrlNames.all, userListCtrlNames.nodespace, userListCtrlNames.nodespaceAdmin, userListCtrlNames.nodespaceAbsent].forEach(function(val, idx, arr) {
-																	trplApp.controller(val, getUserListCtrlFn(val));
-																});
+[userListCtrlNames.all, userListCtrlNames.nodespace, userListCtrlNames.nodespaceAdmin, userListCtrlNames.nodespaceAbsent].forEach(
+	function(val, idx, arr) {
+		trplApp.controller(val, getUserListCtrlFn(val));
+	}
+);
 
 trplApp.controller('SelectUserCtrl',
 	function($scope, $stateParams, trplEvents) {
@@ -562,10 +709,13 @@ trplApp.controller('NodespaceBrowseCtrl',
 	}
 );
 
-trplApp.controller('EditUserInfoCtrl',
-	function($scope, trplBackendSvc) {
+function getEditUserInfoCtrlFn(controllerName) {
+	return function($scope, $stateParams, trplBackendSvc, trplConstants) {
 		var userInfo = $scope.userInfo = {};
-		var updateStatus = $scope.updateStatus = {'encounteredUpdateError': null};
+		var statusMsgInfo = $scope.statusMsgInfo = {shouldShowMsg: false, statusType: null, statusMsg: ''};
+		
+		var statusMsgContentKeys = {successContentKey: 'user_info_edit_success_msg', failureContentKey: 'user_info_edit_error_msg'};
+		var statusMsgCallbackFn = getOperationStatusMsgCallbackFn(statusMsgInfo, trplConstants, statusMsgContentKeys, true);
 		
 		var userInfoCallbackFn = function(userInfoResult) {
 			userInfo = $scope.userInfo = userInfoResult;
@@ -575,55 +725,68 @@ trplApp.controller('EditUserInfoCtrl',
 			trplBackendSvc.getUserViewInfo(userInfoCallbackFn, authInfo.user_id);
 		};
 		
-		var userUpdateCallbackFn = function(updResult) {
-			if (updResult == null) {
-				updateStatus.encounteredUpdateError = true;
-			} else {			
-				updateStatus.encounteredUpdateError = Boolean(updResult.encountered_update_error);
-			}
-		};
-		
 		var submitEditForm = function() {
 			var userUpdData = {'edited_user_id': userInfo.user_id,
 								'username': userInfo.username,
 								'email_addr': userInfo.email_addr,
 								'user_statement': userInfo.user_statement};
-			trplBackendSvc.updateUserInfo(userUpdateCallbackFn, userUpdData);
+			trplBackendSvc.updateUserInfo(statusMsgCallbackFn, userUpdData);
 		};
 		$scope.submitEditForm = submitEditForm;
 		
-		//the fn call to get the user info will be invoked by this call to get the auth info
-		trplBackendSvc.getAuthStatus(authStatusCallbackFn);
+		switch (controllerName) {
+			case trplConstants.editUserInfoCtrlNames.loggedIn:
+				//the fn call to get the user info will be invoked by this call to get the auth info for the logged in user
+				trplBackendSvc.getAuthStatus(authStatusCallbackFn);
+				break;
+			case trplConstants.editUserInfoCtrlNames.other:
+				trplBackendSvc.getUserViewInfo(userInfoCallbackFn, $stateParams.userId);
+				break;
+		}
+	};
+}
+//register each type of edit user controller
+[editUserInfoCtrlNames.loggedIn, editUserInfoCtrlNames.other].forEach(
+	function(val, idx, arr) {
+		trplApp.controller(val, getEditUserInfoCtrlFn(val));
 	}
 );
 
-trplApp.controller('ChangePasswordCtrl',
-	function($scope, trplBackendSvc) {
+function getChangePasswordCtrl(controllerName) {
+	return 	function($scope, $stateParams, trplBackendSvc, trplConstants) {
 		var pwInfo = $scope.pwInfo = {};
-		var updateStatus = $scope.updateStatus = {'encounteredUpdateError': null};
+		var statusMsgInfo = $scope.statusMsgInfo = {shouldShowMsg: false, statusType: null, statusMsg: ''};
+		
+		var statusMsgContentKeys = {successContentKey: 'user_password_edit_success_msg', failureContentKey: 'user_password_edit_error_msg'};
+		var statusMsgCallbackFn = getOperationStatusMsgCallbackFn(statusMsgInfo, trplConstants, statusMsgContentKeys, true);
 		
 		var authStatusCallbackFn = function(authInfo) {
 			pwInfo.edited_user_id = authInfo.user_id;
 		};
-		trplBackendSvc.getAuthStatus(authStatusCallbackFn);
 		
-		var passwordUpdateCallbackFn = function(updResult) {
-			if (updResult == null) {
-				updateStatus.encounteredUpdateError = true;
-			} else {			
-				updateStatus.encounteredUpdateError = Boolean(updResult.encountered_update_error);
-				updateStatus.errorMsg = updResult.error_msg;
-			}
-		};
+		switch (controllerName) {
+			case trplConstants.changePasswordCtrlNames.loggedIn:
+				trplBackendSvc.getAuthStatus(authStatusCallbackFn);
+				break;
+			case trplConstants.changePasswordCtrlNames.other:
+				pwInfo.edited_user_id = $stateParams.userId;
+				break;
+		}
 		
 		var submitPasswordChangeForm = function() {
 			var pwUpdData = {'edited_user_id': pwInfo.edited_user_id,
 								'editing_user_cleartext_password': pwInfo.editing_user_cleartext_password,
 								'cleartext_password_1': pwInfo.cleartext_password_1,
 								'cleartext_password_2': pwInfo.cleartext_password_2};
-			trplBackendSvc.updateUserPassword(passwordUpdateCallbackFn, pwUpdData);
+			trplBackendSvc.updateUserPassword(statusMsgCallbackFn, pwUpdData);
 		};
 		$scope.submitPasswordChangeForm = submitPasswordChangeForm;
+	};
+}
+//register each type of change password controller
+[changePasswordCtrlNames.loggedIn, changePasswordCtrlNames.other].forEach(
+	function(val, idx, arr) {
+		trplApp.controller(val, getChangePasswordCtrl(val));
 	}
 );
 
@@ -652,7 +815,7 @@ trplApp.controller('CreateNodespaceCtrl',
 
 //TODO:  obviously this and CreateNodespaceCtrl need some centralization, because it's silly to have totally separate controllers for edit and create when so much of the code is the same
 trplApp.controller('EditNodespaceCtrl',
-	function($scope, $stateParams, trplBackendSvc) {
+	function($scope, $stateParams, trplBackendSvc, trplEvents) {
 		var nodespaceInfo = $scope.nodespaceInfo = {};
 		var updateStatus = $scope.updateStatus = {'encounteredUpdateError': null};
 		var createStatus = $scope.createStatus = {'encounteredCreateError': null};
@@ -668,6 +831,10 @@ trplApp.controller('EditNodespaceCtrl',
 				updateStatus.encounteredUpdateError = true;
 			} else {
 				updateStatus.encounteredUpdateError = Boolean(updateResult.encountered_update_error);
+			}
+			
+			if (!updateStatus.encounteredUpdateError) {
+				$scope.$emit(trplEvents.nodespaceEdited, $stateParams.nodespaceId);
 			}
 		};
 		
@@ -713,7 +880,7 @@ trplApp.controller('CreateUserInvitationCtrl',
 				}
 			);
 			
-			invCreateData = {invitee_email_addr: invitationInfo.invitee_email_addr, 
+			var invCreateData = {invitee_email_addr: invitationInfo.invitee_email_addr, 
 								metaspace_privileges: granted_metaspace_privs,
 								invitation_msg: invitationInfo.invitation_msg};
 			
@@ -755,7 +922,7 @@ trplApp.controller('CreateNodespaceInvitationCtrl',
 				}
 			);
 			
-			invCreateData = {invitee_email_addr: invitationInfo.inviteeEmailAddr, 
+			var invCreateData = {invitee_email_addr: invitationInfo.inviteeEmailAddr, 
 								nodespace_privileges: granted_nodespace_privs,
 								invitation_msg: invitationInfo.invitation_msg,
 								nodespace_id: $stateParams.nodespaceId};
@@ -765,32 +932,6 @@ trplApp.controller('CreateNodespaceInvitationCtrl',
 		$scope.submitForm = submitForm;
 	}
 );
-
-//TODO: apply this centralization to other places with checkboxes
-//useful for turning a list into selected checkboxes when a map of keys to boolean values provides the ng-model mappings for a checkbox list
-var setBooleanKeysFromList = function(booleanObj, enabledList) {
-	Object.keys(booleanObj).forEach(function(elt, idx, arr) {
-			booleanObj[elt] = false;
-		}
-	);
-	enabledList.forEach(function(elt, idx, arr) {
-			booleanObj[elt] = true;
-		}
-	);
-};
-
-//useful for turning a list of checkbox values into a list of the selected checkboxes, assuming a map of boolean values to keys determines which boxes are checked
-var getListFromBooleanKeys = function(booleanObj) {
-	var enabledList = [];
-	Object.keys(booleanObj).forEach(function(key, idx, arr) {
-			if (booleanObj[key]) {
-				enabledList.push(key);
-			}
-		}
-	);
-	
-	return enabledList;
-};
 
 trplApp.controller('NodespaceUserAccessAlterCtrl',
 	function($scope, $stateParams, trplBackendSvc, trplEvents, trplConstants) {
@@ -803,6 +944,9 @@ trplApp.controller('NodespaceUserAccessAlterCtrl',
 							headerContentKey: 'nodespace_access_edit_form_page_name',
 							updButtonContentKey: 'upd_nodespace_access_submit_btn'};
 		
+		//TODO: grantablePrivileges here actually has a similar problem to the grant access ctrl: if the editing user's 
+		//not an admin in the nodespace, the list stays empty.  but presumably they're a metaspace admin if they're here, so
+		//they should be able to grant whatever.
 		var privilegeInfo = $scope.privilegeInfo = {grantablePrivileges: [], 
 													selectedNodespacePrivileges: {contributor: false, editor: false, 
 																					moderator: false, admin: false},
@@ -817,21 +961,35 @@ trplApp.controller('NodespaceUserAccessAlterCtrl',
 		};
 		trplBackendSvc.getNodespaceAccessInfo(getNodespaceAccessInfoCallbackFn, $stateParams.nodespaceId, $stateParams.userId);
 		
-		var updCallbackFn = getOperationStatusCallbackFn(statusMsgInfo, 'nodespace_access_update_failure_blurb', trplConstants);
+		var updStatusMsgContentKeys = {successContentKey: 'nodespace_access_update_success_blurb', failureContentKey: 'nodespace_access_update_failure_blurb'};
+		var updStatusMsgCallbackFn = getOperationStatusMsgCallbackFn(statusMsgInfo, trplConstants, updStatusMsgContentKeys, true);
 		var submitUpdAccessForm = function() {
 			var grantedNodespacePrivs = getListFromBooleanKeys(privilegeInfo.selectedNodespacePrivileges);
 			
-			nodespaceAccessUpdData = {nodespace_id: $stateParams.nodespaceId, 
+			var nodespaceAccessUpdData = {nodespace_id: $stateParams.nodespaceId, 
 										edited_user_id: $stateParams.userId,
 										nodespace_privileges: grantedNodespacePrivs,
 										is_enabled: privilegeInfo.isEnabled};
+			
+			var updCallbackFn = function(updResult) {
+				updStatusMsgCallbackFn(updResult);
+				$scope.$emit(trplEvents.userEdited, $stateParams.userId);
+			};
+			
 			trplBackendSvc.updateNodespaceAccess(updCallbackFn, nodespaceAccessUpdData);
 		};
 		$scope.submitUpdAccessForm = submitUpdAccessForm;
 		
-		var delCallbackFn = getOperationStatusCallbackFn(statusMsgInfo, 'nodespace_access_revoke_failure_blurb', trplConstants);
+		var delStatusMsgContentKeys = {successContentKey: 'nodespace_access_revoke_success_blurb', failureContentKey: 'nodespace_access_revoke_failure_blurb'};
+		var delStatusMsgCallbackFn = getOperationStatusMsgCallbackFn(statusMsgInfo, trplConstants, delStatusMsgContentKeys, true);
 		var submitDelAccessForm = function() {
 			nodespaceAccessDelData = {nodespace_id: $stateParams.nodespaceId, edited_user_id: $stateParams.userId};
+			
+			var delCallbackFn = function(delResult) {
+				delStatusMsgCallbackFn(delResult);
+				$scope.$emit(trplEvents.userAccessRevoked, $stateParams.userId, delResult);
+			};
+			
 			trplBackendSvc.revokeNodespaceAccess(delCallbackFn, nodespaceAccessDelData);
 		};
 		$scope.submitDelAccessForm = submitDelAccessForm;
@@ -859,7 +1017,8 @@ trplApp.controller('NodespaceUserAccessGrantCtrl',
 		
 		var statusMsgInfo = $scope.statusMsgInfo = {shouldShowMsg: false, statusType: null, statusMsg: ''};
 		
-		var grantCallbackFn = getOperationStatusCallbackFn(statusMsgInfo, 'nodespace_access_grant_failure_blurb', trplConstants);
+		var grantStatusMsgContentKeys = {successContentKey: 'nodespace_access_grant_success_blurb', failureContentKey: 'nodespace_access_grant_failure_blurb'};
+		var grantStatusMsgCallbackFn = getOperationStatusMsgCallbackFn(statusMsgInfo, trplConstants, grantStatusMsgContentKeys, true);
 		var submitUpdAccessForm = function() {
 			var grantedNodespacePrivs = getListFromBooleanKeys(privilegeInfo.selectedNodespacePrivileges);
 			
@@ -867,12 +1026,55 @@ trplApp.controller('NodespaceUserAccessGrantCtrl',
 										edited_user_id: $stateParams.userId,
 										nodespace_privileges: grantedNodespacePrivs,
 										is_enabled: privilegeInfo.isEnabled};
+										
+			var grantCallbackFn = function(grantResult) {
+				grantStatusMsgCallbackFn(grantResult);
+				$scope.$emit(trplEvents.userAccessGranted, $stateParams.userId, grantResult);
+			};
+			
 			trplBackendSvc.grantNodespaceAccess(grantCallbackFn, nodespaceAccessUpdData);
 		};
 		$scope.submitUpdAccessForm = submitUpdAccessForm;
 	}
 );
 
+trplApp.controller('MetaspaceUserAccessEditCtrl',
+	function($scope, $stateParams, trplBackendSvc, trplEvents, trplConstants) {
+		$scope.localContent = {accessEnabledOption: i18n.t('ms_enabled_desc'), 
+							accessDisabledOption: i18n.t('ms_disabled_desc'),
+							headerContentKey: 'edit_usr_metaspace_privs_link_disp_txt',
+							updButtonContentKey: 'update_ms_privs_submit_btn'};
+		
+		var privilegeInfo = $scope.privilegeInfo = {grantablePrivileges: [], 
+													selectedMetaspacePrivileges: {create_space: false, create_user: false, super: false},
+													isEnabled: false};
+													
+		var statusMsgInfo = $scope.statusMsgInfo = {shouldShowMsg: false, statusType: null, statusMsg: ''};
+		
+		var getMetaspaceAccessInfoCallbackFn = function(privInfo) {
+			privilegeInfo.grantablePrivileges = privInfo.grantable_privileges;
+			setBooleanKeysFromList(privilegeInfo.selectedMetaspacePrivileges, privInfo.current_privileges);
+			privilegeInfo.isEnabled = privInfo.is_enabled;
+		};
+		trplBackendSvc.getMetaspaceAccessInfo(getMetaspaceAccessInfoCallbackFn, $stateParams.userId);
+		
+		var updStatusMsgContentKeys = {successContentKey: 'metaspace_access_update_success_blurb', failureContentKey: 'metaspace_access_update_failure_blurb'};
+		var updStatusMsgCallbackFn = getOperationStatusMsgCallbackFn(statusMsgInfo, trplConstants, updStatusMsgContentKeys, true);
+		var submitUpdAccessForm = function() {
+			var grantedMetaspacePrivs = getListFromBooleanKeys(privilegeInfo.selectedMetaspacePrivileges);
+			
+			var metaspaceAccessUpdData = {edited_user_id: $stateParams.userId,
+											metaspace_privileges: grantedMetaspacePrivs,
+											is_enabled: privilegeInfo.isEnabled};
+			var updCallbackFn = function(updResult) {
+				updStatusMsgCallbackFn(updResult);
+			};
+			
+			trplBackendSvc.updateMetaspaceAccess(updCallbackFn, metaspaceAccessUpdData);
+		};
+		$scope.submitUpdAccessForm = submitUpdAccessForm;
+	}
+);
 
 trplApp.directive('toptabs', 
 	function() {
