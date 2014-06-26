@@ -896,7 +896,7 @@ trplApp.controller('CreateNodespaceInvitationCtrl',
 		var invitationInfo = $scope.invitationInfo = {inviteeEmailAddr: null, 
 														selectedNodespacePrivileges: {contributor: false, editor: false, 
 																						moderator: false, admin: false}, 
-														invitation_msg: null};
+														invitationMsg: null};
 		var createStatus = $scope.createStatus = {encounteredCreateError: null, statusMessage: null};
 		
 		var getGrantableNodespacePrivsCallbackFn = function(privInfo) {
@@ -924,7 +924,7 @@ trplApp.controller('CreateNodespaceInvitationCtrl',
 			
 			var invCreateData = {invitee_email_addr: invitationInfo.inviteeEmailAddr, 
 								nodespace_privileges: granted_nodespace_privs,
-								invitation_msg: invitationInfo.invitation_msg,
+								invitation_msg: invitationInfo.invitationMsg,
 								nodespace_id: $stateParams.nodespaceId};
 			
 			trplBackendSvc.createNodespaceInvitation(invCreateCallbackFn, invCreateData);
